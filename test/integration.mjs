@@ -111,9 +111,11 @@ async function testMode(mode) {
   ws.send(Buffer.from([CMD.SPLIT]));
   await sleep(500);
 
+  // L'espacement doit depasser le cooldown du canon (0,18 s en Demolition),
+  // sinon un tir sur deux est avale et on teste le cooldown, pas le canon.
   for (let i = 0; i < 6; i++) {
     ws.send(Buffer.from([CMD.EJECT]));
-    await sleep(120);
+    await sleep(220);
   }
   await sleep(400);
 

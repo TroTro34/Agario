@@ -68,6 +68,12 @@ une interprétation cohérente, pas une reproduction. Tout est dans `server/mode
 | **Confirmé** | Libellé « Demolition » (`Crazy FFA` en anglais), **on démarre à 1000 de masse**, **`W` tire sur les adversaires et leur fait perdre de la masse**, 16 cellules max, 800 joueurs max |
 | **Choisi ici** | Chiffres du canon : 30 de masse par tir, 45 arrachés à la cible, portée 1,4 s à 1150 px/s, cadence 0,18 s, masse minimum 150 pour tirer. Vitesse ×1,5 (sinon on démarre en limace à 1000 de masse) |
 
+Un réglage mérite une explication : `virusEatMinMass` est monté à **2500** dans ce mode, contre 133
+partout ailleurs. Comme on démarre à 1000, le seuil de base faisait exploser le joueur sur le premier
+virus venu, en 16 morceaux de ~69 — sous les 150 requis pour tirer. On perdait donc son canon en
+quelques secondes, ce qui vide le mode de son intérêt. Les virus redeviennent dangereux une fois
+qu'on a vraiment grossi.
+
 Le mécanisme central (masse de départ + `W` qui devient une arme) est bien celui de l'original.
 
 ---
@@ -108,15 +114,25 @@ vitesse = 2,2 × masse^-0,439     → plus on est gros, plus on est lent
 
 Le dézoom de la caméra suit `(min(64 / rayon_total, 1))^0,4`.
 
+### Salons au repos
+
+Un salon sans joueur humain **n'est pas simulé du tout**, et ses bots sont retirés jusqu'au
+prochain arrivant. Sans ça, trois arènes et une centaine de bots tournent à 25 Hz en permanence
+pour personne : mesuré à 4,75 % d'un cœur en continu, soit près de la moitié du quota d'une
+instance à 0,1 CPU — brûlé au repos. Au repos le coût est maintenant nul ; une arène active
+coûte environ 1,6 % d'un cœur.
+
+C'est le réglage qui rend le projet viable sur un petit hébergement.
+
 ### Bande passante
 
-C'est **le** point à surveiller sur un hébergement gratuit. Consommation mesurée, par joueur :
+L'autre point à surveiller sur un hébergement gratuit. Consommation mesurée, par joueur :
 
 | Mode | Entités visibles | Débit |
 |---|---|---|
-| Classique | ~130 | ~17 ko/s |
-| Hardcore | ~250 | ~38 ko/s |
-| Demolition | ~270 | ~34 ko/s |
+| Classique | ~170 | ~25 ko/s |
+| Hardcore | ~135 | ~17 ko/s |
+| Demolition | ~270 | ~37 ko/s |
 
 Deux leviers, par ordre d'efficacité :
 

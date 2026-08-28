@@ -56,9 +56,28 @@ export class Room {
 
     this.hash = new SpatialHash(this.world, 256);
 
+    // Nombre de joueurs humains. Un salon sans humain n'est pas simule du tout
+    // (voir la boucle dans index.js) : sur un petit hebergement, faire tourner
+    // trois arenes en continu pour personne consomme tout le quota CPU.
+    this.humans = 0;
+
     for (let i = 0; i < mode.foodCount; i++) this.spawnFood();
     for (let i = 0; i < mode.virusCount; i++) this.spawnVirus();
-    for (let i = 0; i < mode.bots; i++) this.addBot();
+    // Les bots n'arrivent qu'avec le premier joueur : cf. ensureBots().
+  }
+
+  /** Peuple le salon de bots. Appele quand le premier humain arrive. */
+  ensureBots() {
+    let bots = this.players.size - this.humans;
+    while (bots < this.mode.bots) {
+      this.addBot();
+      bots++;
+    }
+  }
+
+  /** Vide le salon de ses bots. Appele quand le dernier humain part. */
+  clearBots() {
+    for (const [id, p] of [...this.players]) if (p.isBot) this.removePlayer(id);
   }
 
   // --- Helpers ---------------------------------------------------------------
@@ -135,6 +154,7 @@ export class Room {
       brain: isBot ? makeBotBrain() : null,
     };
     this.players.set(id, p);
+    if (!isBot) this.humans++;
     return p;
   }
 
@@ -146,6 +166,7 @@ export class Room {
       this.ids.give(c.id);
     }
     this.players.delete(id);
+    if (!p.isBot) this.humans--;
   }
 
   addBot() {

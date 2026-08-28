@@ -133,6 +133,7 @@ wss.on('connection', (ws) => {
         colorIdx: Number.isInteger(msg.color) ? msg.color : undefined,
         ws,
       });
+      room.ensureBots(); // le salon dormait : on le repeuple a l'arrivee du 1er joueur
       room.spawnPlayer(p);
       bound = { roomId: modeId, playerId: p.id };
       sockets.set(ws, bound);
@@ -195,6 +196,8 @@ wss.on('connection', (ws) => {
     if (p) {
       broadcastSystem(bound.roomId, `${p.name} a quitte la partie`);
       room.removePlayer(bound.playerId);
+      // Dernier humain parti : on rend le salon au repos, bots compris.
+      if (room.humans === 0) room.clearBots();
     }
     sockets.delete(ws);
     bound = null;
@@ -233,7 +236,13 @@ setInterval(() => {
   last = now;
   if (acc > STEP_MS * 5) acc = STEP_MS * 5; // on abandonne le retard au-dela de 5 pas
   while (acc >= STEP_MS) {
-    for (const room of rooms.values()) room.step();
+    for (const room of rooms.values()) {
+      // Un salon vide n'est pas simule : sans ca, trois arenes et une centaine
+      // de bots tournent en permanence pour personne. Sur un petit hebergement
+      // (0.1 CPU) c'est la moitie du quota brulee au repos.
+      if (room.humans === 0) continue;
+      room.step();
+    }
     acc -= STEP_MS;
   }
 }, STEP_MS);

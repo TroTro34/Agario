@@ -121,10 +121,16 @@ export const MODES = {
     startMass: 1000,
     minMass: 100,            // on ne redescend jamais sous 100
     foodCount: 1500,
-    virusCount: 34,
+    virusCount: 28,
     bots: 30,
     decayRate: 0.003,
     speedMul: 1.5,           // sinon 1000 de masse = une limace
+    // On demarre a 1000, tres au-dessus du seuil de base (133) : sans ce
+    // relevement, le premier virus venu eclate le joueur en 16 morceaux de ~69,
+    // sous les 150 requis pour tirer. Il perdrait son canon en quelques secondes,
+    // ce qui vide le mode de son interet. Les virus redeviennent dangereux
+    // seulement une fois qu'on a vraiment grossi.
+    virusEatMinMass: 2500,
     // W n'ejecte plus de la masse : il tire un obus.
     cannon: {
       minMass: 150,          // masse mini pour tirer
