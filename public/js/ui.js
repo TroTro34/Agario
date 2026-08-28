@@ -236,10 +236,22 @@ export class UI {
     }
   }
 
+  // Appele a chaque image : on n'ecrit que si la valeur a change. Reecrire un
+  // textContent identique force malgre tout un recalcul de style et de layout.
   setStats({ score, cells, players }) {
-    this.el.statScore.textContent = formatScore(score);
-    this.el.statCells.textContent = String(cells);
-    this.el.statPlayers.textContent = String(players);
+    const s = formatScore(score);
+    if (s !== this._lastScore) {
+      this.el.statScore.textContent = s;
+      this._lastScore = s;
+    }
+    if (cells !== this._lastCells) {
+      this.el.statCells.textContent = String(cells);
+      this._lastCells = cells;
+    }
+    if (players !== this._lastPlayers) {
+      this.el.statPlayers.textContent = String(players);
+      this._lastPlayers = players;
+    }
   }
 
   // --- Chat ------------------------------------------------------------------

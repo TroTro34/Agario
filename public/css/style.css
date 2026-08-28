@@ -374,13 +374,15 @@ kbd {
   z-index: 10;
 }
 
+/* Pas de backdrop-filter ici : le canvas change a chaque image, ce qui
+   obligerait le compositeur a refloutter ces zones 60 fois par seconde.
+   Mesure a l'appui, c'etait la cause principale des images perdues. */
 .panel {
   position: absolute;
-  background: rgba(12, 12, 16, 0.62);
+  background: rgba(12, 12, 16, 0.82);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius);
   padding: 10px 12px;
-  backdrop-filter: blur(6px);
 }
 
 #leaderboard {
@@ -475,11 +477,10 @@ kbd {
   left: 14px;
   padding: 6px 12px;
   border-radius: 999px;
-  background: rgba(12, 12, 16, 0.62);
+  background: rgba(12, 12, 16, 0.82);
   border: 1px solid rgba(255, 255, 255, 0.08);
   font-size: 12px;
   font-weight: 700;
-  backdrop-filter: blur(6px);
 }
 
 /* -------------------------------- Chat ---------------------------------- */

@@ -43,6 +43,8 @@ export class Renderer {
     this.w = w;
     this.h = h;
     this.dpr = dpr;
+    // La minimap memorise sa taille : on l'invalide pour qu'elle se remesure.
+    this._mmCanvas = null;
   }
 
   /** Echelle cible d'apres la somme des rayons des cellules du joueur. */
@@ -97,7 +99,9 @@ export class Renderer {
     this.drawBorder(x0, y0, side);
 
     // Tri : les petites entites dessous, les grosses dessus.
-    const cells = [];
+    // Tableau reutilise d'une image sur l'autre plutot que realloue 60 fois/s.
+    const cells = this._sortBuf || (this._sortBuf = []);
+    cells.length = 0;
     for (const e of net.entities.values()) {
       if (e.kind === KIND.FOOD) this.drawFood(e, cam);
       else if (e.kind === KIND.EJECTED) this.drawEjected(e, cam);
@@ -286,15 +290,24 @@ export class Renderer {
     }
   }
 
-  /** Minimap : petit carre avec la position du joueur et celle des leaders. */
+  /**
+   * Minimap : petit carre avec la position du joueur.
+   * Le contexte et la taille sont memorises : les relire a chaque image
+   * (getContext, clientWidth) declenche un recalcul de layout pour rien.
+   */
   drawMinimap(mmCanvas, net, cam, worldSize) {
-    const ctx = mmCanvas.getContext('2d');
-    const size = mmCanvas.clientWidth || 160;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    if (mmCanvas.width !== size * dpr) {
-      mmCanvas.width = size * dpr;
-      mmCanvas.height = size * dpr;
+    if (this._mmCanvas !== mmCanvas) {
+      this._mmCanvas = mmCanvas;
+      this._mmCtx = mmCanvas.getContext('2d');
+      this._mmSize = mmCanvas.clientWidth || 160;
+      const d = Math.min(window.devicePixelRatio || 1, 2);
+      mmCanvas.width = this._mmSize * d;
+      mmCanvas.height = this._mmSize * d;
+      this._mmDpr = d;
     }
+    const ctx = this._mmCtx;
+    const size = this._mmSize;
+    const dpr = this._mmDpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, size, size);
 
