@@ -1,34 +1,49 @@
 // Couche reseau : WebSocket, decodage des snapshots binaires, interpolation.
 //
-// Le serveur envoie ~20 snapshots/s ; on rend a 60 fps. On garde donc pour
-// chaque entite sa position precedente et sa position cible, et on interpole
-// entre les deux. Sans ca, le jeu saccade visiblement.
+// Le serveur envoie ~15 snapshots/s et on rend a 60 fps : il faut donc inventer
+// les images intermediaires.
+//
+// On rend LEGEREMENT DANS LE PASSE (voir `delay`). A chaque frame on cherche les
+// deux snapshots qui encadrent l'instant rendu et on interpole entre eux. Ce
+// retard volontaire absorbe la gigue reseau : un paquet en retard n'interrompt
+// plus le mouvement, il arrive simplement avant qu'on en ait besoin.
+//
+// L'approche naive - viser en permanence le dernier snapshot recu et s'arreter
+// une fois arrive - fige toutes les entites des qu'un paquet tarde, ce qui donne
+// un deplacement saccade tres visible.
 
 export const KIND = { FOOD: 0, CELL: 1, VIRUS: 2, EJECTED: 3, BULLET: 4 };
 const CMD = { TARGET: 0, SPLIT: 1, EJECT: 2 };
+
+const BUFFER_MAX = 12; // snapshots conserves (~0,8 s a 15 Hz)
 
 export class Net {
   constructor(handlers = {}) {
     this.ws = null;
     this.on = handlers;
 
-    /** @type {Map<number, object>} entites interpolees, par id */
+    /** @type {Map<number, object>} entites telles qu'affichees (positions interpolees) */
     this.entities = new Map();
     /** @type {Map<number, object>} pseudo/couleur/skin par joueur visible */
     this.roster = new Map();
 
+    /** File de snapshots horodates : [{ t, map: Map<id, rec> }] */
+    this.buffer = [];
+    this.snapInterval = 66; // moyenne glissante, recalculee a la reception
+    this.lastSnapAt = 0;
+
     this.selfId = 0;
     this.mode = null;
-    this.cam = { x: 0, y: 0 };
-    this.camPrev = { x: 0, y: 0 };
-    this.camAt = 0;
     this.score = 0;
     this.cellCount = 0;
     this.leaderboard = [];
     this.playerCount = 0;
 
-    this.lastSnapAt = 0;
-    this.snapInterval = 50; // recalcule a la volee
+    // Camera : reprise du serveur quand on n'a plus de cellule (mort, spectateur).
+    this.serverCam = { x: 0, y: 0 };
+    this.cam = { x: 0, y: 0 };
+    this.camReady = false;
+
     this._targetBuf = new ArrayBuffer(9);
     this._targetView = new DataView(this._targetBuf);
     this._oneByte = new Uint8Array(1);
@@ -36,6 +51,11 @@ export class Net {
 
   get connected() {
     return this.ws && this.ws.readyState === 1;
+  }
+
+  /** Retard de rendu : une fois et demie l'intervalle, borne. */
+  get delay() {
+    return Math.max(70, Math.min(this.snapInterval * 1.5 + 12, 220));
   }
 
   connect() {
@@ -54,14 +74,20 @@ export class Net {
     return this;
   }
 
+  _reset() {
+    this.entities.clear();
+    this.roster.clear();
+    this.buffer.length = 0;
+    this.camReady = false;
+  }
+
   // --- Emission --------------------------------------------------------------
   send(obj) {
     if (this.connected) this.ws.send(JSON.stringify(obj));
   }
 
   join({ name, skin, mode, color }) {
-    this.entities.clear();
-    this.roster.clear();
+    this._reset();
     this.send({ t: 'join', name, skin, mode, color });
   }
 
@@ -75,8 +101,7 @@ export class Net {
 
   leave() {
     this.send({ t: 'leave' });
-    this.entities.clear();
-    this.roster.clear();
+    this._reset();
   }
 
   sendTarget(x, y) {
@@ -110,12 +135,15 @@ export class Net {
       case 'welcome':
         this.selfId = msg.id;
         this.mode = msg.mode;
+        this._reset();
         this.on.welcome?.(msg);
         break;
       case 'cam':
-        this.camPrev = { ...this.cam };
-        this.cam = { x: msg.x, y: msg.y };
-        this.camAt = performance.now();
+        this.serverCam = { x: msg.x, y: msg.y };
+        if (!this.camReady) {
+          this.cam = { x: msg.x, y: msg.y };
+          this.camReady = true;
+        }
         this.score = msg.s;
         this.cellCount = msg.n;
         break;
@@ -152,13 +180,13 @@ export class Net {
 
     const now = performance.now();
     if (this.lastSnapAt) {
-      // Moyenne glissante : absorbe la gigue reseau sans figer l'interpolation.
-      this.snapInterval = this.snapInterval * 0.8 + (now - this.lastSnapAt) * 0.2;
+      const dt = now - this.lastSnapAt;
+      // Moyenne glissante, en ignorant les valeurs aberrantes (onglet en veille).
+      if (dt < 500) this.snapInterval = this.snapInterval * 0.85 + dt * 0.15;
     }
     this.lastSnapAt = now;
 
-    const seen = new Set();
-
+    const map = new Map();
     for (let i = 0; i < count; i++) {
       const kind = dv.getUint8(o);
       o += 1;
@@ -187,41 +215,107 @@ export class Net {
         r = kind === KIND.FOOD ? 10 : kind === KIND.BULLET ? 22 : 37;
       }
 
-      seen.add(id);
-      let e = this.entities.get(id);
+      map.set(id, { kind, x, y, r, ownerId, color });
+    }
+
+    this.buffer.push({ t: now, map });
+    while (this.buffer.length > BUFFER_MAX) this.buffer.shift();
+  }
+
+  /**
+   * Reconstruit `entities` pour l'instant rendu, et renvoie la position camera.
+   * A appeler une fois par frame, avant le rendu.
+   */
+  interpolate(now) {
+    const buf = this.buffer;
+    if (buf.length === 0) return this.cam;
+
+    const renderTime = now - this.delay;
+
+    // Les deux snapshots encadrant l'instant rendu.
+    let i = buf.length - 1;
+    while (i > 0 && buf[i].t > renderTime) i--;
+    const s0 = buf[i];
+    const s1 = buf[i + 1];
+
+    if (!s1) {
+      // On est en retard sur le buffer (paquets en retard) : on tient la
+      // derniere position connue plutot que d'extrapoler et de faire l'elastique.
+      this._apply(s0.map, null, 0);
+    } else {
+      const span = s1.t - s0.t;
+      const a = span > 0 ? Math.max(0, Math.min(1, (renderTime - s0.t) / span)) : 1;
+      this._apply(s0.map, s1.map, a);
+    }
+
+    this._updateCamera();
+    return this.cam;
+  }
+
+  /** Ecrit les positions interpolees dans `entities`, en reutilisant les objets. */
+  _apply(m0, m1, a) {
+    const src = m1 || m0;
+    const ents = this.entities;
+
+    for (const [id, r1] of src) {
+      const r0 = m1 ? m0.get(id) : r1;
+      let e = ents.get(id);
       if (!e) {
-        e = { id, kind, x, y, r, ownerId, color, px: x, py: y, pr: r, tx: x, ty: y, tr: r };
-        this.entities.set(id, e);
+        e = { id, kind: r1.kind, x: r1.x, y: r1.y, r: r1.r, ownerId: r1.ownerId, color: r1.color };
+        ents.set(id, e);
+      }
+      e.kind = r1.kind;
+      e.ownerId = r1.ownerId;
+      e.color = r1.color;
+      if (r0) {
+        // Entite presente dans les deux snapshots : interpolation classique.
+        e.x = r0.x + (r1.x - r0.x) * a;
+        e.y = r0.y + (r1.y - r0.y) * a;
+        e.r = r0.r + (r1.r - r0.r) * a;
       } else {
-        // La position rendue devient le point de depart de la prochaine interpolation.
-        e.px = e.x;
-        e.py = e.y;
-        e.pr = e.r;
-        e.tx = x;
-        e.ty = y;
-        e.tr = r;
-        e.kind = kind;
-        e.ownerId = ownerId;
-        e.color = color;
+        // Entite qui vient d'entrer dans le champ : rien a interpoler.
+        e.x = r1.x;
+        e.y = r1.y;
+        e.r = r1.r;
       }
     }
 
-    for (const id of this.entities.keys()) if (!seen.has(id)) this.entities.delete(id);
+    for (const id of ents.keys()) if (!src.has(id)) ents.delete(id);
   }
 
-  /** Avance l'interpolation. A appeler une fois par frame avant le rendu. */
-  interpolate(now) {
-    const span = Math.max(16, Math.min(this.snapInterval, 200));
-    const t = Math.min(1, (now - this.lastSnapAt) / span);
+  /**
+   * Camera = barycentre (pondere par la masse) de mes propres cellules, calcule
+   * sur les positions DEJA interpolees. La camera colle ainsi exactement aux
+   * cellules affichees ; l'interpoler separement depuis le serveur les
+   * desynchronise et fait vibrer toute la scene.
+   */
+  _updateCamera() {
+    let x = 0;
+    let y = 0;
+    let w = 0;
     for (const e of this.entities.values()) {
-      e.x = e.px + (e.tx - e.px) * t;
-      e.y = e.py + (e.ty - e.py) * t;
-      e.r = e.pr + (e.tr - e.pr) * t;
+      if (e.kind !== KIND.CELL || e.ownerId !== this.selfId) continue;
+      const m = e.r * e.r; // proportionnel a la masse
+      x += e.x * m;
+      y += e.y * m;
+      w += m;
     }
-    const ct = Math.min(1, (now - this.camAt) / span);
-    return {
-      x: this.camPrev.x + (this.cam.x - this.camPrev.x) * ct,
-      y: this.camPrev.y + (this.cam.y - this.camPrev.y) * ct,
-    };
+
+    if (w > 0) {
+      this.cam.x = x / w;
+      this.cam.y = y / w;
+      this.camReady = true;
+      return;
+    }
+
+    // Plus de cellule (mort ou spectateur) : on suit la camera du serveur,
+    // en lissant pour eviter les sauts brusques.
+    if (!this.camReady) {
+      this.cam = { ...this.serverCam };
+      this.camReady = true;
+      return;
+    }
+    this.cam.x += (this.serverCam.x - this.cam.x) * 0.08;
+    this.cam.y += (this.serverCam.y - this.cam.y) * 0.08;
   }
 }

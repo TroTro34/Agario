@@ -136,9 +136,28 @@ L'autre point à surveiller sur un hébergement gratuit. Consommation mesurée, 
 
 Deux leviers, par ordre d'efficacité :
 
-- `NET_RATE` (variable d'environnement, 15 par défaut) — le débit y est directement proportionnel.
-  Le client interpole entre les snapshots, donc descendre à 12 reste fluide.
+- `NET_RATE` (variable d'environnement, 20 par défaut) — le débit y est directement proportionnel.
+  Attention : le client rend légèrement dans le passé pour absorber la gigue, et ce retard vaut
+  environ 1,5 intervalle. Baisser `NET_RATE` économise de la bande passante **mais allonge
+  d'autant la latence perçue**. 15 reste jouable, en dessous ça devient mou.
 - La marge de vue dans `viewRadiusFor()` (`server/room.js`) — elle compte **au carré**.
+
+### Fluidité
+
+Le serveur envoie 20 images/s et le client en affiche 60 : il faut inventer les intermédiaires.
+
+`net.js` conserve une file de snapshots horodatés et **rend légèrement dans le passé** (~85 ms),
+en interpolant entre les deux snapshots qui encadrent l'instant rendu. Ce retard volontaire absorbe
+la gigue réseau : un paquet en retard arrive avant qu'on en ait besoin, au lieu d'interrompre le
+mouvement.
+
+L'approche naïve — viser en permanence le dernier snapshot reçu et s'arrêter une fois arrivé — fige
+toutes les entités dès qu'un paquet tarde, ce qui arrive environ une fois sur deux. Le résultat est
+un déplacement très visiblement saccadé. `test/interpolation.mjs` mesure ça directement.
+
+La caméra est le barycentre des cellules du joueur **calculé sur les positions déjà interpolées**,
+et non une valeur interpolée séparément : sinon elle se désynchronise des cellules et toute la scène
+vibre.
 
 Le palier gratuit de Render offre 100 Go/mois, soit de l'ordre de 700 heures-joueur à 40 ko/s.
 
@@ -163,8 +182,9 @@ public/
   js/skins.js   skins générés au canvas (aucun asset)
   js/main.js    entrées clavier/souris, boucle de rendu
 test/
-  physics.mjs      règles du moteur (sans réseau)
-  integration.mjs  parcours complet en WebSocket
+  physics.mjs        règles du moteur (sans réseau)
+  interpolation.mjs  fluidité du rendu sous gigue réseau
+  integration.mjs    parcours complet en WebSocket
 ```
 
 **Réseau.** Les snapshots passent en binaire (8 à 11 octets par entité, ids `u16` recyclés) ;
@@ -182,8 +202,22 @@ npm test
 
 `physics.mjs` vérifie les règles moteur (échelle rayon/masse, seuils de split et d'éjection,
 ratio pour manger, explosion sur virus, fusion, dégâts du canon, attrition) en pilotant une `Room`
-directement. `integration.mjs` rejoue un parcours complet en WebSocket sur les trois modes —
-il faut que le serveur tourne.
+directement.
+
+`interpolation.mjs` mesure la fluidité : il rejoue un mouvement rectiligne uniforme à travers la
+couche réseau, avec gigue et pertes, et compte les **images figées** — celles où rien ne bouge,
+exactement ce que l'œil perçoit comme un à-coup. Le seuil est à 0 %.
+
+`integration.mjs` rejoue un parcours complet en WebSocket sur les trois modes — il faut que le
+serveur tourne :
+
+```bash
+npm run test:net
+```
+
+> Sur Windows, `npm test` peut échouer avec « 'node' n'est pas reconnu » : npm lance les scripts via
+> `cmd.exe`, qui n'a pas forcément Node dans son `PATH`. Les fichiers se lancent directement
+> (`node test/physics.mjs`).
 
 ## Licence
 

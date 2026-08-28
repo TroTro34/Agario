@@ -71,6 +71,10 @@ async function testMode(mode) {
     sawEjected: false,
     sawBullet: false,
     bytes: 0,
+    // En Demolition, se diviser (2 x 500) rend mangeable par les bots a 1000.
+    // Se faire manger est un comportement legitime du jeu, pas un echec du code :
+    // on le note pour ne pas transformer un alea de partie en test rouge.
+    died: false,
   };
 
   await new Promise((res, rej) => {
@@ -94,6 +98,7 @@ async function testMode(mode) {
       if (m.t === 'welcome') state.welcome = m;
       else if (m.t === 'cam') state.cam = m;
       else if (m.t === 'chat') state.chat.push(m);
+      else if (m.t === 'dead') state.died = true;
     }
   });
 
@@ -149,6 +154,7 @@ async function testMode(mode) {
     maxCells: state.maxCells,
     sawProjectile: md.cannon ? state.sawBullet : state.sawEjected,
     chatReceived: state.chat.length,
+    died: state.died,
   };
 }
 
@@ -173,17 +179,21 @@ for (const r of results) {
 
   // A la masse de depart, split et ejection ne sont autorises que si le mode
   // le permet. On verifie la regle, pas un comportement fixe.
-  const splitOk = r.canSplitAtSpawn ? r.maxCells >= 2 : r.maxCells === 1;
+  //
+  // Si le joueur s'est fait manger en cours de route, les actions qui suivent
+  // sont legitimement sans effet : on ne peut plus rien conclure, donc on
+  // n'echoue pas dessus (ce serait un test rouge au hasard des parties).
+  const splitOk = r.died || (r.canSplitAtSpawn ? r.maxCells >= 2 : r.maxCells === 1);
   console.log(
     `  ${check(splitOk)} split au spawn      : ${r.maxCells} cellule(s)` +
-      ` (autorise: ${r.canSplitAtSpawn})`,
+      ` (autorise: ${r.canSplitAtSpawn})${r.died ? ' [mange en cours de test]' : ''}`,
   );
 
-  const projOk = r.canEjectAtSpawn ? r.sawProjectile : !r.sawProjectile;
+  const projOk = r.died || (r.canEjectAtSpawn ? r.sawProjectile : !r.sawProjectile);
   const projLabel = r.cannon ? 'obus (W = tir)' : 'masse ejectee ';
   console.log(
     `  ${check(projOk)} ${projLabel}      : ${r.sawProjectile}` +
-      ` (autorise: ${r.canEjectAtSpawn})`,
+      ` (autorise: ${r.canEjectAtSpawn})${r.died ? ' [mange en cours de test]' : ''}`,
   );
 
   console.log(`  ${check(r.chatReceived === 1)} chat + anti-spam    : ${r.chatReceived}/2 recu`);

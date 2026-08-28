@@ -13,10 +13,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const PORT = process.env.PORT || 3000;
 const TICK_RATE = Number(process.env.TICK_RATE || 25); // pas de simulation / s
-// 15 snapshots/s : le client interpole, donc ca reste fluide, et c'est le
-// principal levier sur la bande passante (cf. README). Montez a 20-25 si le
-// reseau n'est pas une contrainte.
-const NET_RATE = Number(process.env.NET_RATE || 15); // snapshots / s
+// 20 snapshots/s. Le client rend legerement dans le passe pour absorber la
+// gigue (cf. net.js), et ce retard vaut ~1,5 intervalle : baisser cette valeur
+// economise de la bande passante mais allonge d'autant la latence percue.
+// 15 reste jouable si le reseau est la contrainte principale.
+const NET_RATE = Number(process.env.NET_RATE || 20); // snapshots / s
 const LB_RATE = 2; // leaderboard + roster / s
 
 export const SKINS = [

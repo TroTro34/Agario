@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
-    "test": "node test/physics.mjs",
+    "test": "node test/physics.mjs && node test/interpolation.mjs",
     "test:net": "node test/integration.mjs"
   },
   "engines": {
