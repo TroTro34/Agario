@@ -154,6 +154,9 @@ wss.on('connection', (ws) => {
           virusEatMinMass: mode.virusEatMinMass,
           splitMinMass: mode.splitMinMass,
           ejectMinMass: mode.ejectMinMass,
+          // Le client rejoue la meme physique pour predire ses propres cellules
+          // (cf. net.js) : il lui faut les memes constantes que le serveur.
+          speedMul: mode.speedMul,
         },
         name: p.name,
         color: p.color,

@@ -89,6 +89,87 @@ function run({ jitterMs, lossRate, label }) {
   return { label, frozen, cv, mean, n: d.length };
 }
 
+// -----------------------------------------------------------------------------
+// Prediction locale de nos propres cellules.
+//
+// Ici le serveur ET le client rejouent la meme physique. On verifie que notre
+// cellule avance de facon continue image par image, y compris quand les paquets
+// s'arretent un instant : c'est tout l'interet de la prediction. Sans elle, la
+// cellule se fige des que le flux s'interrompt.
+// -----------------------------------------------------------------------------
+
+const R = 100; // rayon de notre cellule
+const MOUSE = { x: 30000, y: 3000 }; // curseur loin a droite -> plein regime
+
+function serverSpeed() {
+  const mass = (R / 10) ** 2;
+  return Math.max(42, 2.2 * Math.pow(mass, -0.439) * 940);
+}
+
+function runPredicted({ stallAt, stallMs, label }) {
+  const net = new Net();
+  net.selfId = SELF;
+  net.speedMul = 1;
+  net.worldSize = 40000;
+
+  let clock = 0;
+  const realNow = performance.now.bind(performance);
+  performance.now = () => clock;
+
+  // Position faisant autorite, integree comme le ferait le serveur (25 Hz).
+  let sx = 1000;
+  const sy = 3000;
+  const sp = serverSpeed();
+  let serverClock = 0;
+
+  const frameInterval = 1000 / FPS;
+  const netInterval = 1000 / NET_HZ;
+  let nextPacket = 0;
+
+  const deltas = [];
+  let prevX = null;
+
+  for (let f = 0; f < DURATION * FPS; f++) {
+    clock = f * frameInterval;
+
+    // Le serveur avance a pas fixes.
+    while (serverClock + 40 <= clock) {
+      serverClock += 40;
+      const d = MOUSE.x - sx;
+      if (d > 1) sx += Math.min(1, d / (R + 12)) * sp * 0.04;
+    }
+
+    // Emission des snapshots, avec eventuellement une coupure.
+    while (nextPacket <= clock) {
+      const inStall = stallMs > 0 && nextPacket >= stallAt && nextPacket < stallAt + stallMs;
+      if (!inStall) {
+        net._snapshot(
+          encodeSnapshot(
+            [{ kind: KIND.CELL, id: 1, x: Math.round(sx), y: sy, r: R, ownerId: SELF }],
+            0,
+          ),
+        );
+      }
+      nextPacket += netInterval;
+    }
+
+    const cam = net.interpolate(clock, MOUSE);
+    if (net.entities.size && cam.x > 0) {
+      if (prevX !== null) deltas.push(cam.x - prevX);
+      prevX = cam.x;
+    }
+  }
+
+  performance.now = realNow;
+
+  const d = deltas.slice(30);
+  if (!d.length) return { label, frozen: 100, cv: 99 };
+  const mean = d.reduce((a, b) => a + b, 0) / d.length;
+  const frozen = (d.filter((v) => Math.abs(v) < mean * 0.05).length / d.length) * 100;
+  const variance = d.reduce((a, b) => a + (b - mean) ** 2, 0) / d.length;
+  return { label, frozen, cv: (Math.sqrt(variance) / Math.abs(mean)) * 100 };
+}
+
 const scenarios = [
   { label: 'reseau parfait      ', jitterMs: 0, lossRate: 0 },
   { label: 'gigue legere  +-8ms ', jitterMs: 8, lossRate: 0 },
@@ -105,15 +186,22 @@ console.log('  scenario               | images figees | irregularite');
 console.log('  -----------------------|---------------|-------------');
 
 let failed = 0;
-for (const s of scenarios) {
-  const r = run(s);
-  // Un rendu fluide ne doit produire aucune image figee et rester regulier.
-  const ok = r.frozen < 1 && r.cv < 25;
+const report = (r, limitCv) => {
+  const ok = r.frozen < 1 && r.cv < limitCv;
   if (!ok) failed++;
   console.log(
     `  ${r.label} | ${r.frozen.toFixed(1).padStart(11)}% | ${r.cv.toFixed(1).padStart(10)}%  ${ok ? 'OK' : 'FAIL'}`,
   );
-}
+};
+
+console.log('  -- autres joueurs : interpolation depuis le buffer --');
+for (const s of scenarios) report(run(s), 25);
+
+console.log('');
+console.log('  -- notre cellule : prediction locale --');
+report(runPredicted({ label: 'flux regulier       ', stallAt: 0, stallMs: 0 }), 25);
+report(runPredicted({ label: 'coupure de 150 ms   ', stallAt: 2000, stallMs: 150 }), 25);
+report(runPredicted({ label: 'coupure de 300 ms   ', stallAt: 2000, stallMs: 300 }), 40);
 
 console.log('');
 console.log(failed === 0 ? 'RENDU FLUIDE' : `${failed} SCENARIO(S) SACCADE(S)`);

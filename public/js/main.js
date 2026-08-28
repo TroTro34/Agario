@@ -186,15 +186,22 @@ window.addEventListener('keydown', (e) => {
 
 // --- Boucles -----------------------------------------------------------------
 
+// Cible visee, en coordonnees monde. Recalculee a chaque image : elle sert a la
+// fois a la prediction locale et a ce qu'on envoie au serveur.
+let aim = null;
+
 // Envoi de la cible : 30 Hz suffisent, inutile de saturer la socket a 60.
 setInterval(() => {
-  if (!inGame || !net.connected) return;
-  const w = renderer.toWorld(pointer.x, pointer.y, cam);
-  net.sendTarget(w.x, w.y);
+  if (!inGame || !net.connected || !aim) return;
+  net.sendTarget(aim.x, aim.y);
 }, 1000 / 30);
 
 function frame(now) {
-  cam = net.interpolate(now);
+  // La cible depend de la camera de l'image precedente. La boucle est donc
+  // rompue d'une image, ce qui est imperceptible et evite toute recursion.
+  aim = renderer.toWorld(pointer.x, pointer.y, cam);
+
+  cam = net.interpolate(now, inGame ? aim : null);
   renderer.render(net, cam, worldSize);
 
   if (!ui.el.hud.classList.contains('hidden')) {

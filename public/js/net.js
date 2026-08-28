@@ -15,7 +15,17 @@
 export const KIND = { FOOD: 0, CELL: 1, VIRUS: 2, EJECTED: 3, BULLET: 4 };
 const CMD = { TARGET: 0, SPLIT: 1, EJECT: 2 };
 
-const BUFFER_MAX = 12; // snapshots conserves (~0,8 s a 15 Hz)
+const BUFFER_MAX = 12; // snapshots conserves
+
+// --- Physique rejouee cote client (doit rester identique au serveur) ---------
+// Elle ne sert QU'A predire nos propres cellules entre deux paquets. Le serveur
+// reste seul juge : ses positions corrigent la prediction a chaque snapshot.
+const R_PER_MASS = 10;
+const SPEED_SCALE = 940;
+const MIN_SPEED = 42;
+// Au-dela, on ne predit plus (paquets perdus, onglet en arriere-plan) : mieux
+// vaut s'arreter que de partir tres loin et revenir d'un coup.
+const MAX_PREDICT = 0.35; // secondes
 
 export class Net {
   constructor(handlers = {}) {
@@ -29,6 +39,16 @@ export class Net {
 
     /** File de snapshots horodates : [{ t, map: Map<id, rec> }] */
     this.buffer = [];
+
+    /**
+     * Nos propres cellules, predites localement.
+     * id -> { ax, ay, at, x, y }
+     *   ax/ay/at : derniere position FAISANT AUTORITE et son horodatage
+     *   x/y      : position affichee, rejouee depuis l'autorite a chaque image
+     */
+    this.own = new Map();
+    this.speedMul = 1;
+    this.worldSize = 14142;
     this.snapInterval = 66; // moyenne glissante, recalculee a la reception
     this.lastSnapAt = 0;
 
@@ -77,6 +97,7 @@ export class Net {
   _reset() {
     this.entities.clear();
     this.roster.clear();
+    this.own.clear();
     this.buffer.length = 0;
     this.camReady = false;
   }
@@ -135,6 +156,8 @@ export class Net {
       case 'welcome':
         this.selfId = msg.id;
         this.mode = msg.mode;
+        this.speedMul = msg.mode.speedMul ?? 1;
+        this.worldSize = msg.mode.world;
         this._reset();
         this.on.welcome?.(msg);
         break;
@@ -220,13 +243,30 @@ export class Net {
 
     this.buffer.push({ t: now, map });
     while (this.buffer.length > BUFFER_MAX) this.buffer.shift();
+
+    // Nos cellules : on retient la position faisant autorite. La prediction
+    // repart de la a chaque image, ce qui borne la derive.
+    for (const [id, rec] of map) {
+      if (rec.kind !== KIND.CELL || rec.ownerId !== this.selfId) continue;
+      const o = this.own.get(id);
+      if (o) {
+        o.ax = rec.x;
+        o.ay = rec.y;
+        o.at = now;
+      } else {
+        // Cellule inconnue (apparition, division, reapparition) : on s'y colle
+        // sans transition, il n'y a rien a corriger.
+        this.own.set(id, { ax: rec.x, ay: rec.y, at: now, x: rec.x, y: rec.y });
+      }
+    }
+    for (const id of this.own.keys()) if (!map.has(id)) this.own.delete(id);
   }
 
   /**
    * Reconstruit `entities` pour l'instant rendu, et renvoie la position camera.
    * A appeler une fois par frame, avant le rendu.
    */
-  interpolate(now) {
+  interpolate(now, mouse) {
     const buf = this.buffer;
     if (buf.length === 0) return this.cam;
 
@@ -248,8 +288,74 @@ export class Net {
       this._apply(s0.map, s1.map, a);
     }
 
+    this._predictOwn(now, mouse);
     this._updateCamera();
     return this.cam;
+  }
+
+  /**
+   * Prediction locale de nos propres cellules.
+   *
+   * Sans elle, notre cellule n'est qu'un echo du serveur : elle avance par
+   * paliers de 20 Hz, avec en plus le retard de rendu. Meme parfaitement
+   * interpolee, elle ne colle jamais a la souris.
+   *
+   * Ici on rejoue la physique du serveur depuis la derniere position faisant
+   * autorite, sur le temps ecoule depuis ce paquet. La position devient une
+   * fonction continue de `now` : elle est donc lisse quel que soit le nombre
+   * d'images par seconde, et sans latence ajoutee.
+   *
+   * Le rayon, lui, reste celui du serveur (interpole) : la masse depend de ce
+   * qu'on mange, le client n'a pas a en decider.
+   */
+  _predictOwn(now, mouse) {
+    if (!mouse) return;
+    const W = this.worldSize;
+
+    for (const [id, o] of this.own) {
+      const e = this.entities.get(id);
+      if (!e) continue;
+
+      const r = e.r;
+      const mass = (r / R_PER_MASS) ** 2;
+      const speed = Math.max(
+        MIN_SPEED,
+        2.2 * Math.pow(mass, -0.439) * SPEED_SCALE * this.speedMul,
+      );
+
+      const elapsed = Math.min((now - o.at) / 1000, MAX_PREDICT);
+
+      // Rejeu depuis l'autorite. Quelques sous-pas : la direction change au fur
+      // et a mesure qu'on approche du curseur, un pas unique derive en courbe.
+      let px = o.ax;
+      let py = o.ay;
+      const steps = 3;
+      const h = elapsed / steps;
+      for (let s = 0; s < steps; s++) {
+        const dx = mouse.x - px;
+        const dy = mouse.y - py;
+        const d = Math.hypot(dx, dy);
+        if (d <= 1) break;
+        // Zone morte identique au serveur : on ralentit pres du curseur.
+        const throttle = Math.min(1, d / (r + 12));
+        px += (dx / d) * speed * throttle * h;
+        py += (dy / d) * speed * throttle * h;
+      }
+      px = Math.max(r, Math.min(W - r, px));
+      py = Math.max(r, Math.min(W - r, py));
+
+      // Lissage de la correction. A chaque paquet la cible saute de l'ecart de
+      // prediction ; on s'en approche progressivement pour ne pas le voir.
+      // Ecart important (division, explosion sur virus, teleportation) : on
+      // recale d'un coup, l'adoucir donnerait un effet elastique bien pire.
+      const err = Math.hypot(px - o.x, py - o.y);
+      const k = err > 600 ? 1 : 0.35;
+      o.x += (px - o.x) * k;
+      o.y += (py - o.y) * k;
+
+      e.x = o.x;
+      e.y = o.y;
+    }
   }
 
   /** Ecrit les positions interpolees dans `entities`, en reutilisant les objets. */
