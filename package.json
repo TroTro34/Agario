@@ -1,0 +1,21 @@
+{
+  "name": "agarium",
+  "version": "1.0.0",
+  "description": "Arene multijoueur type agar.io - modes Classique, Hardcore et Demolition, chat in-game, skins.",
+  "type": "module",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "test": "node test/physics.mjs",
+    "test:net": "node test/integration.mjs"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "ws": "^8.18.0"
+  },
+  "license": "MIT"
+}

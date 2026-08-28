@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: agarium
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm ci --omit=dev
+    startCommand: node server/index.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: TICK_RATE
+        value: "25"
+      - key: NET_RATE
+        value: "15"

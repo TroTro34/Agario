@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <title>Agarium — arene multijoueur</title>
+    <meta name="description" content="Arene multijoueur gratuite dans le navigateur : modes Classique, Hardcore et Demolition, chat en jeu, skins." />
+    <meta name="theme-color" content="#111114" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/css/style.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='%2333d94c' stroke='%232aae3d' stroke-width='3'/%3E%3C/svg%3E"
+    />
+  </head>
+  <body>
+    <!-- Arene -->
+    <canvas id="game"></canvas>
+
+    <!-- ============================ HUD en jeu ============================ -->
+    <div id="hud" class="hidden">
+      <div id="leaderboard" class="panel">
+        <h2>Classement</h2>
+        <ol id="lb-list"></ol>
+      </div>
+
+      <div id="stats" class="panel">
+        <div class="stat"><span class="stat-k">Score</span><span id="stat-score">0</span></div>
+        <div class="stat"><span class="stat-k">Cellules</span><span id="stat-cells">1</span></div>
+        <div class="stat"><span class="stat-k">Joueurs</span><span id="stat-players">0</span></div>
+      </div>
+
+      <canvas id="minimap"></canvas>
+
+      <div id="chat">
+        <div id="chat-log" aria-live="polite"></div>
+        <form id="chat-form" class="hidden">
+          <input
+            id="chat-input"
+            type="text"
+            maxlength="120"
+            autocomplete="off"
+            placeholder="Message… (Entree pour envoyer, Echap pour annuler)"
+          />
+        </form>
+        <div id="chat-hint">Appuie sur <kbd>Entree</kbd> pour discuter</div>
+      </div>
+
+      <div id="mode-badge"></div>
+    </div>
+
+    <!-- ============================== Menu =============================== -->
+    <div id="menu">
+      <div class="menu-card">
+        <header class="brand">
+          <div class="brand-dot"></div>
+          <h1>Agarium</h1>
+          <p class="tagline">Mange, grossis, domine l'arene.</p>
+        </header>
+
+        <label class="field">
+          <span class="field-label">Pseudo</span>
+          <input id="nick" type="text" maxlength="15" placeholder="Ton pseudo" autocomplete="off" />
+        </label>
+
+        <section class="field">
+          <span class="field-label">Skin</span>
+          <div id="skin-grid" class="skin-grid"></div>
+          <div id="color-row" class="color-row"></div>
+        </section>
+
+        <section class="field">
+          <span class="field-label">Mode de jeu</span>
+          <div id="mode-list" class="mode-list"></div>
+        </section>
+
+        <div class="actions">
+          <button id="play" class="btn btn-play" type="button">Jouer</button>
+          <button id="spectate" class="btn btn-ghost" type="button">Spectateur</button>
+        </div>
+
+        <footer class="controls">
+          <div><kbd>Souris</kbd> diriger la cellule</div>
+          <div><kbd>Espace</kbd> se diviser</div>
+          <div><kbd>W</kbd> <span id="w-hint">ejecter de la masse</span></div>
+          <div><kbd>Entree</kbd> chat</div>
+        </footer>
+
+        <div class="settings-row">
+          <label><input type="checkbox" id="opt-arena" /> Arene claire</label>
+          <label><input type="checkbox" id="opt-grid" checked /> Grille</label>
+          <label><input type="checkbox" id="opt-mass" checked /> Masse</label>
+        </div>
+
+        <p id="conn-state" class="conn">Connexion…</p>
+      </div>
+    </div>
+
+    <!-- ============================ Ecran de mort ======================== -->
+    <div id="dead" class="hidden">
+      <div class="menu-card dead-card">
+        <h2>Tu as ete mange</h2>
+        <div class="dead-stats">
+          <div><span id="dead-score">0</span><small>score max</small></div>
+          <div><span id="dead-time">0s</span><small>survie</small></div>
+          <div><span id="dead-xp">0</span><small>XP</small></div>
+        </div>
+        <div class="actions">
+          <button id="again" class="btn btn-play" type="button">Rejouer</button>
+          <button id="to-menu" class="btn btn-ghost" type="button">Menu</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/js/main.js"></script>
+  </body>
+</html>
