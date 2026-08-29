@@ -147,12 +147,22 @@ Deux leviers, par ordre d'efficacité :
 Le serveur envoie 25 images/s, le client en affiche 60. Deux mécanismes différents, parce qu'on ne
 peut prédire que soi-même.
 
-**Nos propres cellules : prédiction locale.** Le client rejoue la physique du serveur à chaque
-image, en repartant de la dernière position faisant autorité. La position devient une fonction
-continue du temps : lisse quel que soit le nombre d'images par seconde, et sans latence ajoutée.
-Chaque snapshot recale la prédiction ; au-delà de 600 unités d'écart (division, virus) on recale
-d'un coup plutôt que d'étirer un élastique. Le rayon, lui, reste celui du serveur : la masse dépend
-de ce qu'on mange.
+**Nos propres cellules : prédiction locale.** Le client intègre le mouvement **en continu**, à
+chaque image, vers le curseur — c'est ce qui rend le changement de direction instantané, sans
+attendre que le serveur soit au courant. L'autorité du serveur n'intervient qu'en **rappel doux**
+en arrière-plan (6 % par image, indépendant du nombre d'images par seconde), sauf écart massif
+(division, virus, réapparition) où l'on recale d'un coup : adoucir un saut de cette taille donnerait
+un élastique bien pire.
+
+Le point subtil est là. Une première version rejouait la physique depuis la position officielle à
+chaque image, puis s'y ramenait vivement. En ligne droite c'était lisse, mais **dans les virages
+non** : le serveur bouge encore selon l'ancienne direction, puisqu'il n'a pas encore reçu la
+nouvelle, donc chaque paquet tirait la cellule en arrière — un à-coup à la cadence des paquets,
+uniquement quand on tournait. L'intégration continue supprime ce couplage. Mesuré, l'irrégularité
+en ligne droite est passée de 11,2 % à 1,8 % au passage.
+
+Le rayon, lui, reste celui du serveur : la masse dépend de ce qu'on mange, le client n'a pas à en
+décider.
 
 Sans ça, notre cellule n'est qu'un écho du serveur : elle avance par paliers et se fige dès que le
 flux hoquette — avec la caméra, donc toute la scène.

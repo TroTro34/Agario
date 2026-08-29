@@ -170,6 +170,102 @@ function runPredicted({ stallAt, stallMs, label }) {
   return { label, frozen, cv: (Math.sqrt(variance) / Math.abs(mean)) * 100 };
 }
 
+// -----------------------------------------------------------------------------
+// Changement de direction.
+//
+// Le cas qui posait probleme. Le serveur applique notre cible avec du retard
+// (envoi a 30 Hz + reseau) : pendant tout ce delai il continue sur l'ANCIENNE
+// direction, alors que le client vise deja la nouvelle. Chaque paquet tire donc
+// la cellule en arriere.
+//
+// A vitesse constante, la distance parcourue par image doit rester stable, meme
+// pendant le virage. On mesure donc la NORME du deplacement, pas seulement x.
+// -----------------------------------------------------------------------------
+
+function runTurn({ inputLagMs, label }) {
+  const net = new Net();
+  net.selfId = SELF;
+  net.speedMul = 1;
+  net.worldSize = 40000;
+
+  let clock = 0;
+  const realNow = performance.now.bind(performance);
+  performance.now = () => clock;
+
+  const AIM_A = { x: 30000, y: 3000 }; // plein est
+  const AIM_B = { x: 3000, y: 30000 }; // plein sud : virage a 90 degres
+  const TURN_AT = 2500;
+  const mouseAt = (t) => (t < TURN_AT ? AIM_A : AIM_B);
+
+  let sx = 1000;
+  let sy = 3000;
+  const sp = serverSpeed();
+  let serverClock = 0;
+
+  const frameInterval = 1000 / FPS;
+  const netInterval = 1000 / NET_HZ;
+  let nextPacket = 0;
+
+  const deltas = [];
+  let prevX = null;
+  let prevY = null;
+
+  for (let f = 0; f < DURATION * FPS; f++) {
+    clock = f * frameInterval;
+
+    // Le serveur avance avec la cible qu'il avait recue, donc en retard.
+    while (serverClock + 40 <= clock) {
+      serverClock += 40;
+      const m = mouseAt(serverClock - inputLagMs);
+      const dx = m.x - sx;
+      const dy = m.y - sy;
+      const d = Math.hypot(dx, dy);
+      if (d > 1) {
+        const th = Math.min(1, d / (R + 12));
+        sx += (dx / d) * sp * th * 0.04;
+        sy += (dy / d) * sp * th * 0.04;
+      }
+    }
+
+    while (nextPacket <= clock) {
+      net._snapshot(
+        encodeSnapshot(
+          [
+            {
+              kind: KIND.CELL,
+              id: 1,
+              x: Math.round(sx),
+              y: Math.round(sy),
+              r: R,
+              ownerId: SELF,
+            },
+          ],
+          0,
+        ),
+      );
+      nextPacket += netInterval;
+    }
+
+    const cam = net.interpolate(clock, mouseAt(clock));
+    if (net.entities.size && cam.x > 0) {
+      if (prevX !== null) deltas.push(Math.hypot(cam.x - prevX, cam.y - prevY));
+      prevX = cam.x;
+      prevY = cam.y;
+    }
+  }
+
+  performance.now = realNow;
+
+  // On ne garde que la fenetre autour du virage : c'est la que ca se joue.
+  const from = Math.floor(((TURN_AT - 300) / 1000) * FPS);
+  const to = Math.floor(((TURN_AT + 900) / 1000) * FPS);
+  const d = deltas.slice(from, to);
+  const mean = d.reduce((a, b) => a + b, 0) / d.length;
+  const frozen = (d.filter((v) => v < mean * 0.05).length / d.length) * 100;
+  const variance = d.reduce((a, b) => a + (b - mean) ** 2, 0) / d.length;
+  return { label, frozen, cv: (Math.sqrt(variance) / mean) * 100 };
+}
+
 const scenarios = [
   { label: 'reseau parfait      ', jitterMs: 0, lossRate: 0 },
   { label: 'gigue legere  +-8ms ', jitterMs: 8, lossRate: 0 },
@@ -204,6 +300,12 @@ console.log('  -- notre cellule : prediction locale --');
 report(runPredicted({ label: 'flux regulier       ', stallAt: 0, stallMs: 0 }), 18);
 report(runPredicted({ label: 'coupure de 150 ms   ', stallAt: 2000, stallMs: 150 }), 18);
 report(runPredicted({ label: 'coupure de 300 ms   ', stallAt: 2000, stallMs: 300 }), 18);
+
+console.log('');
+console.log('  -- virage a 90 degres (le serveur suit avec du retard) --');
+report(runTurn({ label: 'retard entree  50 ms', inputLagMs: 50 }), 18);
+report(runTurn({ label: 'retard entree 100 ms', inputLagMs: 100 }), 18);
+report(runTurn({ label: 'retard entree 180 ms', inputLagMs: 180 }), 18);
 
 console.log('');
 console.log(failed === 0 ? 'RENDU FLUIDE' : `${failed} SCENARIO(S) SACCADE(S)`);

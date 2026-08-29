@@ -309,7 +309,9 @@ export class Net {
    * qu'on mange, le client n'a pas a en decider.
    */
   _predictOwn(now, mouse) {
-    if (!mouse) return;
+    const dt = Math.min((now - (this._predictAt || now)) / 1000, 0.1);
+    this._predictAt = now;
+    if (!mouse || dt <= 0) return;
     const W = this.worldSize;
 
     for (const [id, o] of this.own) {
@@ -323,35 +325,59 @@ export class Net {
         2.2 * Math.pow(mass, -0.439) * SPEED_SCALE * this.speedMul,
       );
 
-      const elapsed = Math.min((now - o.at) / 1000, MAX_PREDICT);
+      // --- 1. Integration continue vers le curseur ---------------------------
+      // C'est ce qui rend le changement de direction instantane : on tourne
+      // localement, sans attendre que le serveur soit au courant.
+      const dx = mouse.x - o.x;
+      const dy = mouse.y - o.y;
+      const d = Math.hypot(dx, dy);
+      if (d > 1) {
+        // Zone morte identique au serveur : on ralentit pres du curseur.
+        const throttle = Math.min(1, d / (r + 12));
+        o.x += (dx / d) * speed * throttle * dt;
+        o.y += (dy / d) * speed * throttle * dt;
+      }
 
-      // Rejeu depuis l'autorite. Quelques sous-pas : la direction change au fur
-      // et a mesure qu'on approche du curseur, un pas unique derive en courbe.
-      let px = o.ax;
-      let py = o.ay;
+      // --- 2. Rappel vers l'autorite ----------------------------------------
+      // Rejeu depuis le dernier paquet, en sous-pas car la direction evolue au
+      // fur et a mesure qu'on approche du curseur.
+      const elapsed = Math.min((now - o.at) / 1000, MAX_PREDICT);
+      let ax = o.ax;
+      let ay = o.ay;
       const steps = 3;
       const h = elapsed / steps;
       for (let s = 0; s < steps; s++) {
-        const dx = mouse.x - px;
-        const dy = mouse.y - py;
-        const d = Math.hypot(dx, dy);
-        if (d <= 1) break;
-        // Zone morte identique au serveur : on ralentit pres du curseur.
-        const throttle = Math.min(1, d / (r + 12));
-        px += (dx / d) * speed * throttle * h;
-        py += (dy / d) * speed * throttle * h;
+        const ex = mouse.x - ax;
+        const ey = mouse.y - ay;
+        const ed = Math.hypot(ex, ey);
+        if (ed <= 1) break;
+        const th = Math.min(1, ed / (r + 12));
+        ax += (ex / ed) * speed * th * h;
+        ay += (ey / ed) * speed * th * h;
       }
-      px = Math.max(r, Math.min(W - r, px));
-      py = Math.max(r, Math.min(W - r, py));
 
-      // Lissage de la correction. A chaque paquet la cible saute de l'ecart de
-      // prediction ; on s'en approche progressivement pour ne pas le voir.
-      // Ecart important (division, explosion sur virus, teleportation) : on
-      // recale d'un coup, l'adoucir donnerait un effet elastique bien pire.
-      const err = Math.hypot(px - o.x, py - o.y);
-      const k = err > 600 ? 1 : 0.35;
-      o.x += (px - o.x) * k;
-      o.y += (py - o.y) * k;
+      const err = Math.hypot(ax - o.x, ay - o.y);
+      if (err > 600) {
+        // Ecart massif (division, explosion sur virus, reapparition) : recalage
+        // sec. L'adoucir donnerait un effet elastique bien pire que le saut.
+        o.x = ax;
+        o.y = ay;
+      } else {
+        // Rappel DOUX, et independant du nombre d'images par seconde.
+        //
+        // Ce point est le coeur du probleme des virages. Quand on tourne, le
+        // serveur bouge encore selon l'ancienne direction - il n'a pas encore
+        // recu la nouvelle. Chaque paquet tire donc la cellule en arriere.
+        // Un rappel brutal rend ce tiraillement visible a la cadence des
+        // paquets ; un rappel lent le filtre, pendant que l'integration
+        // ci-dessus assure la reactivite.
+        const k = 1 - Math.pow(1 - 0.06, dt * 60);
+        o.x += (ax - o.x) * k;
+        o.y += (ay - o.y) * k;
+      }
+
+      o.x = Math.max(r, Math.min(W - r, o.x));
+      o.y = Math.max(r, Math.min(W - r, o.y));
 
       e.x = o.x;
       e.y = o.y;
