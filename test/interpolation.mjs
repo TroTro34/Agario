@@ -29,7 +29,26 @@ function snapshotAt(timeSec) {
   return encodeSnapshot(ents, 0);
 }
 
-function run({ jitterMs, lossRate, label }) {
+/**
+ * Generateur pseudo-aleatoire deterministe (mulberry32).
+ *
+ * Sans graine fixe, la gigue et les pertes changent a chaque execution et le
+ * resultat oscille autour du seuil : mesure entre 22,7 % et 27,9 % d'un lancement
+ * a l'autre pour un seuil a 25 %. Un test qui echoue une fois sur trois sans
+ * qu'aucun code n'ait bouge ne sert a rien - on ne sait plus lire ses echecs.
+ */
+function makeRng(seed) {
+  let s = seed >>> 0;
+  return () => {
+    s = (s + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function run({ jitterMs, lossRate, label, seed = 20260828 }) {
+  const rnd = makeRng(seed);
   const net = new Net();
   net.selfId = SELF;
 
@@ -46,9 +65,9 @@ function run({ jitterMs, lossRate, label }) {
   // le fait) - c'est toute la difference entre simuler du retard et de la perte.
   const queue = [];
   for (let k = 0; k * netInterval < DURATION * 1000 + 500; k++) {
-    if (Math.random() < lossRate) continue;
+    if (rnd() < lossRate) continue;
     const sent = k * netInterval;
-    const jitter = Math.random() * jitterMs;
+    const jitter = rnd() * jitterMs;
     queue.push({ gameTime: sent, arrival: sent + jitter });
   }
   queue.sort((a, b) => a.arrival - b.arrival);

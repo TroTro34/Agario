@@ -158,6 +158,10 @@ wss.on('connection', (ws) => {
           // Le client rejoue la meme physique pour predire ses propres cellules
           // (cf. net.js) : il lui faut les memes constantes que le serveur.
           speedMul: mode.speedMul,
+          // Le rayon des pastilles n'est pas transmis dans les snapshots (on
+          // economise 2 octets par entite) : le client le deduit de la masse.
+          foodMass: mode.foodMass,
+          ejectMass: mode.ejectMass,
         },
         name: p.name,
         color: p.color,

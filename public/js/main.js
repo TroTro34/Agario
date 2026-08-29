@@ -111,12 +111,16 @@ ui.el.again.addEventListener('click', () => {
   inGame = true;
 });
 
-ui.el.toMenu.addEventListener('click', () => {
+function returnToMenu() {
   net.leave();
   inGame = false;
+  spectating = false;
+  renderer.resetZoom();
   ui.showMenu();
   loadModes();
-});
+}
+
+ui.el.toMenu.addEventListener('click', returnToMenu);
 
 // --- Reglages ----------------------------------------------------------------
 ui.el.optArena.addEventListener('change', (e) => {
@@ -140,6 +144,17 @@ canvas.addEventListener('mousemove', (e) => {
   pointer.x = e.clientX;
   pointer.y = e.clientY;
 });
+
+// Molette : zoom manuel, par paliers multiplicatifs pour que la sensation soit
+// la meme quel que soit le niveau de zoom courant.
+canvas.addEventListener(
+  'wheel',
+  (e) => {
+    e.preventDefault();
+    renderer.zoomBy(e.deltaY < 0 ? 1.12 : 1 / 1.12);
+  },
+  { passive: false },
+);
 
 canvas.addEventListener(
   'touchmove',
@@ -170,6 +185,16 @@ window.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') startGame();
     return;
   }
+
+  // Echap quitte la partie. Traite avant le test `inGame` pour fonctionner
+  // aussi depuis l'ecran de mort et le mode spectateur.
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    if (!ui.el.menu.classList.contains('hidden')) return; // deja au menu
+    returnToMenu();
+    return;
+  }
+
   if (!inGame) return;
 
   if (e.key === 'Enter') {

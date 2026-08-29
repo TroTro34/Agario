@@ -22,6 +22,7 @@ export class Renderer {
 
     this.scale = 1;
     this.targetScale = 1;
+    this.userZoom = 1; // molette, cf. zoomBy()
     this.w = 0;
     this.h = 0;
     this.dpr = 1;
@@ -51,7 +52,21 @@ export class Renderer {
   computeScale(totalR) {
     const base = Math.pow(Math.min(64 / Math.max(totalR, 1), 1), 0.4);
     const viewMul = Math.max(this.w / REF_W, this.h / REF_H);
-    return base * viewMul;
+    return base * viewMul * this.userZoom;
+  }
+
+  /**
+   * Zoom manuel a la molette, en plus du dezoom automatique lie a la masse.
+   * Borne : trop dezoomer donnerait un avantage (on verrait venir les autres
+   * de bien plus loin), trop zoomer rend le jeu illisible.
+   */
+  zoomBy(factor) {
+    this.userZoom = Math.max(0.55, Math.min(this.userZoom * factor, 1.8));
+    return this.userZoom;
+  }
+
+  resetZoom() {
+    this.userZoom = 1;
   }
 
   screenX(wx, cam) {

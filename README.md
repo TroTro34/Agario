@@ -83,10 +83,14 @@ Le mécanisme central (masse de départ + `W` qui devient une arme) est bien cel
 | Touche | Effet |
 |---|---|
 | Souris | Diriger la cellule |
-| `Espace` | Se diviser |
-| `W` | Éjecter de la masse — **tirer** en Demolition |
+| Molette | Zoomer / dézoomer (en plus du dézoom automatique lié à la masse) |
+| `Espace` | Se diviser — à partir de 36 de masse |
+| `W` | Éjecter de la masse — à partir de 32 ; **tirer** en Demolition |
 | `Entrée` | Ouvrir le chat / envoyer |
-| `Échap` | Fermer le chat |
+| `Échap` | Fermer le chat, sinon quitter la partie |
+
+Les seuils de masse comptent : sous 32, `W` ne fait volontairement rien. Avec des pastilles à
+2 de masse, on les atteint en une dizaine de pastilles.
 
 ---
 

@@ -11,6 +11,10 @@ const SPEED_SCALE = 940;
 const MIN_SPEED = 42; // plancher : une grosse cellule reste jouable
 const TAU = Math.PI * 2;
 
+// Fenetre avant l'echeance de fusion pendant laquelle les morceaux d'un meme
+// joueur cessent de se repousser, pour que le regroupement soit progressif.
+const MERGE_GRACE_MS = 1500;
+
 export const PALETTE_SIZE = 16;
 
 export const massToRadius = (m) => R_PER_MASS * Math.sqrt(m);
@@ -619,6 +623,10 @@ export class Room {
             }
             continue; // on se chevauche mais on va fusionner : pas de poussee
           }
+          // Juste avant l'echeance, on cesse aussi de se repousser : sinon les
+          // morceaux se bousculent jusqu'a la derniere seconde puis se collent
+          // d'un coup. En les laissant se rapprocher, la fusion devient douce.
+          if (now >= a.mergeAt - MERGE_GRACE_MS && now >= b.mergeAt - MERGE_GRACE_MS) continue;
           if (d === 0) d = 0.01;
           const overlap = (a.r + b.r - d) * 0.5;
           const nx = dx / d;

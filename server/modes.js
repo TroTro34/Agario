@@ -12,7 +12,10 @@ export const BASE = {
   // --- Monde ---------------------------------------------------------------
   world: 14142,          // arene carree, cote en unites monde
   foodCount: 1600,       // pastilles maintenues en permanence
-  foodMass: 1,
+  // Pastilles a 2 de masse : un peu plus grosses (rayon 14 au lieu de 10) et
+  // deux fois plus nourrissantes. On atteint donc les seuils de split et
+  // d'ejection deux fois plus vite.
+  foodMass: 2,
   virusCount: 50,
   bots: 25,              // IA pour que l'arene ne soit jamais vide
 
@@ -28,7 +31,9 @@ export const BASE = {
   splitDecay: 0.88,      // amortissement de l'impulsion par tick
 
   // --- Ejection (W) --------------------------------------------------------
-  ejectMinMass: 35,
+  // Seuil abaisse a 32 : il doit rester au-dessus de ejectCost + minMass (28),
+  // sinon ejecter ferait passer sous le plancher de masse.
+  ejectMinMass: 32,
   ejectCost: 18,         // masse retiree au joueur
   ejectMass: 14,         // masse du projectile
   ejectSpeed: 780,
