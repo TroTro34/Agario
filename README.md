@@ -84,11 +84,18 @@ Deux invariants tiennent cette économie, et les casser rend le mode injouable :
 comme on peut ramasser ses propres projectiles, il suffit de tirer en boucle pour grossir sans
 limite. C'est la même règle que l'éjection classique, qui coûte 18 pour une pastille de 14.
 
-**La duplication des virus doit être plafonnée.** Nourrir un virus en crée un nouveau, qui peut à
-son tour être nourri : sans plafond, quelques joueurs qui mitraillent les virus tapissent l'arène
-en une minute. Le plafond vaut `virusCount × virusMaxFactor` (1,6 par défaut) ; au plafond le tir
-est absorbé sans rien créer. Le surplus se résorbe ensuite très lentement — un virus toutes les
-20 s — pour que l'arène redevienne normale sans annuler la duplication deux secondes après coup.
+**`damage` doit rester sous `cost`.** Sinon chaque projectile est rentable isolément, et comme
+*toutes* les cellules tirent, être divisé en 16 multiplie par 16 une action déjà gagnante. À 12 pour
+16, arroser coûte toujours plus que ça ne rapporte : tirer redevient un outil tactique — affaiblir
+une cible pour la manger — et non une façon de farmer.
+
+**La duplication des virus est bornée par virus, jamais par un total.** Nourrir un virus en crée un
+nouveau, qui peut à son tour être nourri. Un plafond global serait le mauvais levier : il punit tout
+le monde dès qu'un seul joueur mitraille les virus, et rend le résultat d'un tir dépendant de ce que
+font les autres à l'autre bout de la carte. Chaque virus porte donc ses propres limites —
+`virusMaxSpawns` dédoublements, et une profondeur de lignée `virusMaxGen`. Un virus d'origine
+engendre au plus deux descendants, qui n'engendrent plus rien : la croissance est bornée sans
+jamais compter les virus en jeu.
 
 La portée se calcule : `speed × dt / (1 − friction)`, soit environ **1760 unités** parcourues en 3 s.
 Le repère utile est le champ de vision — un joueur à 1000 de masse voit environ 2600 unités autour de

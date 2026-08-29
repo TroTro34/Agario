@@ -95,13 +95,6 @@ export class Room {
 
     this.hash = new SpatialHash(this.world, 256);
 
-    // Plafond de virus : nourrir un virus en cree un nouveau, il faut donc
-    // borner la croissance (cf. feedVirus).
-    this.virusCap = Math.max(
-      mode.virusCount,
-      Math.round(mode.virusCount * (mode.virusMaxFactor ?? 1.6)),
-    );
-
     // Nombre de joueurs humains. Un salon sans humain n'est pas simule du tout
     // (voir la boucle dans index.js) : sur un petit hebergement, faire tourner
     // trois arenes en continu pour personne consomme tout le quota CPU.
@@ -158,7 +151,7 @@ export class Room {
     return f;
   }
 
-  spawnVirus(x, y) {
+  spawnVirus(x, y, gen = 0) {
     const p = x === undefined ? this.randPos() : { x, y };
     const v = {
       id: this.ids.take(),
@@ -170,6 +163,9 @@ export class Room {
       vx: 0,
       vy: 0,
       feedAngle: 0,
+      // Bornes portees par le virus lui-meme (cf. feedVirus).
+      gen, // profondeur dans la lignee : 0 = virus d'origine
+      spawns: 0, // dedoublements deja produits par CE virus
     };
     this.viruses.set(v.id, v);
     return v;
@@ -617,14 +613,16 @@ export class Room {
       return false;
     }
 
-    // Le virus est mur, mais on ne depasse jamais le plafond : sinon quelques
-    // joueurs qui mitraillent les virus tapissent l'arene et la partie est
-    // finie. Au plafond, le tir est simplement absorbe.
+    // Le virus est mur. Reste a savoir s'il a encore le droit de se dedoubler :
+    // la limite est portee par LUI (nombre de dedoublements deja produits, et
+    // profondeur de sa lignee), jamais par le nombre total de virus en jeu.
+    // Un virus epuise absorbe le tir sans rien creer.
     v.mass = m.virusMass;
     v.r = massToRadius(v.mass);
-    if (this.viruses.size >= this.virusCap) return false;
+    if (v.spawns >= m.virusMaxSpawns || v.gen >= m.virusMaxGen) return false;
 
-    const nv = this.spawnVirus(v.x, v.y);
+    v.spawns++;
+    const nv = this.spawnVirus(v.x, v.y, v.gen + 1);
     nv.vx = Math.cos(angle) * m.virusFeedSpeed;
     nv.vy = Math.sin(angle) * m.virusFeedSpeed;
     return true;
@@ -722,19 +720,10 @@ export class Room {
       const n = Math.min(need, 24);
       for (let i = 0; i < n; i++) this.spawnFood();
     }
-    // On complete jusqu'a la cible, et on resorbe le surplus cree par les tirs.
-    // TRES lentement (un virus toutes les 20 s) : c'est un retour a la normale
-    // sur la duree d'une partie, pas une annulation de la duplication. Retirer
-    // le surplus en quelques secondes rendrait le fait de nourrir un virus sans
-    // effet. Le plafond, lui, borne deja la croissance (cf. feedVirus).
+    // On complete jusqu'a la cible. Pas de degonflement du surplus : la
+    // croissance est deja bornee par virus (cf. feedVirus), et retirer des
+    // virus au fil de l'eau reviendrait a annuler le travail des joueurs.
     while (this.viruses.size < m.virusCount) this.spawnVirus();
-    if (this.viruses.size > m.virusCount && this.tick % 500 === 0) {
-      const id = this.viruses.keys().next().value;
-      if (id !== undefined) {
-        this.viruses.delete(id);
-        this.ids.give(id);
-      }
-    }
   }
 
   // --- Vue joueur ------------------------------------------------------------

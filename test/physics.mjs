@@ -274,39 +274,60 @@ section('Projectiles et virus');
   );
 }
 
-// --- 7ter. La duplication est bornee -----------------------------------------
-section('Plafond de virus');
+// --- 7ter. La duplication est bornee PAR VIRUS -------------------------------
+section('Limite de dedoublement par virus');
 {
-  const room = bareRoom('demolition', { virusCount: 4 });
-  const p = placePlayer(room, 5000, 5000, 120, 'Q'); // < virusEatMinMass : n'explose pas
-  // On regroupe les virus devant le tireur pour qu'ils recoivent les tirs.
-  let k = 0;
-  for (const v of room.viruses.values()) {
-    v.x = 5600 + k * 40;
-    v.y = 5000;
-    k++;
-  }
-  check('un plafond est defini', room.virusCap > room.mode.virusCount, `${room.mode.virusCount} -> ${room.virusCap}`);
+  const room = bareRoom('demolition', { virusCount: 1 });
+  const m = room.mode;
+  const v = room.viruses.values().next().value;
 
-  let peak = 0;
-  for (let salve = 0; salve < 120; salve++) {
-    // On maintient la masse pour pouvoir continuer a tirer.
-    p.cells[0].mass = 120;
-    p.cells[0].r = massToRadius(120);
-    room.setTarget(p, 30000, 5000);
-    p.lastFireAt = 0;
-    room.doFire(p);
-    for (let i = 0; i < 20; i++) room.step();
-    peak = Math.max(peak, room.viruses.size);
+  // On nourrit le meme virus bien au-dela de ce qu'il peut engendrer.
+  let created = 0;
+  for (let i = 0; i < 60; i++) {
+    if (room.feedVirus(v, m.virusSplitMass, 0)) created++;
   }
-  check('120 salves ne depassent pas le plafond', peak <= room.virusCap, `pic ${peak} / plafond ${room.virusCap}`);
-
-  // Le surplus se resorbe une fois le calme revenu.
-  for (let i = 0; i < 800; i++) room.step();
   check(
-    'le surplus se resorbe',
-    room.viruses.size <= room.mode.virusCount,
-    `${room.viruses.size} virus pour une cible de ${room.mode.virusCount}`,
+    'un virus ne se dedouble qu un nombre limite de fois',
+    created === m.virusMaxSpawns,
+    `${created} dedoublements pour une limite de ${m.virusMaxSpawns}`,
+  );
+
+  // Les descendants ne doivent pas relancer la chaine a l'infini.
+  const child = [...room.viruses.values()].find((x) => x.gen > 0);
+  check('les descendants sont marques', Boolean(child), child ? `gen ${child.gen}` : 'aucun');
+  let fromChild = 0;
+  for (let i = 0; i < 60; i++) {
+    if (room.feedVirus(child, m.virusSplitMass, 0)) fromChild++;
+  }
+  check(
+    'a la profondeur maximale, la lignee s arrete',
+    fromChild === 0,
+    `${fromChild} dedoublements depuis un virus de gen ${child.gen}`,
+  );
+
+  // Total borne, sans jamais avoir regarde le nombre total de virus.
+  check(
+    'croissance totale bornee',
+    room.viruses.size === 1 + m.virusMaxSpawns,
+    `${room.viruses.size} virus au final`,
+  );
+}
+
+// --- 7quater. Le tir ne doit pas etre rentable en soi ------------------------
+section('Equilibre du tir');
+{
+  const room = bareRoom('demolition');
+  const cn = room.mode.cannon;
+  // Si les degats depassent le cout, chaque projectile est gagnant isolement,
+  // et etre divise en 16 multiplie par 16 une action deja rentable.
+  check('les degats restent sous le cout du tir', cn.damage < cn.cost, `${cn.damage} < ${cn.cost}`);
+
+  // Une salve depuis 16 cellules doit couter plus qu'elle n'inflige.
+  const cells = 16;
+  check(
+    'une salve de 16 coute plus qu elle n inflige',
+    cells * cn.cost > cells * cn.damage,
+    `${cells * cn.cost} depenses pour ${cells * cn.damage} infliges`,
   );
 }
 

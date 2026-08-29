@@ -53,11 +53,17 @@ export const BASE = {
   // --- Virus ---------------------------------------------------------------
   virusMass: 100,
   virusSplitMass: 180,   // masse a laquelle un virus nourri en ejecte un nouveau
-  // Plafond dur. Nourrir un virus en cree un nouveau : sans limite, quelques
-  // joueurs qui tirent sur les virus tapissent l'arene et la partie est finie.
-  // Au plafond, le tir est absorbe sans rien creer. Exprime en multiple de
-  // virusCount pour rester coherent quand on retouche la densite d'un mode.
-  virusMaxFactor: 1.6,
+  // La duplication est bornee PAR VIRUS, pas par un plafond global : un plafond
+  // global punit tout le monde des qu'un seul joueur mitraille les virus, et
+  // rend le resultat d'un tir dependant de ce que font les autres a l'autre
+  // bout de la carte.
+  //
+  // Chaque virus ne peut se dedoubler qu'un nombre limite de fois, et la
+  // lignee a une profondeur maximale. Un virus d'origine engendre donc au plus
+  // virusMaxSpawns descendants, qui eux-memes n'engendrent plus rien : la
+  // croissance est bornee sans jamais regarder le total.
+  virusMaxSpawns: 2,     // dedoublements possibles pour un meme virus
+  virusMaxGen: 1,        // profondeur de lignee (0 = seuls les virus d'origine)
   virusFeedSpeed: 700,
   virusEatMinMass: 133,  // en dessous, on peut traverser un virus sans exploser
 
@@ -156,7 +162,12 @@ export const MODES = {
       // limite. Meme regle que l'ejection classique (18 pour une pastille
       // de 14). Le gain reste gros pour l'adversaire : 12, soit six pastilles.
       cost: 16,              // masse perdue par tir et par cellule
-      damage: 20,            // masse arrachee a la cible en vol
+      // damage DOIT rester sous cost. A 20 pour 16, chaque projectile etait
+      // rentable en lui-meme : etre divise en 16 multipliait par 16 une action
+      // deja gagnante, sans aucune contrepartie. A 12 pour 16, arroser coute
+      // toujours plus que ca ne rapporte - tirer redevient un outil tactique
+      // (affaiblir une cible pour la manger) et non une facon de farmer.
+      damage: 12,            // masse arrachee a la cible en vol
       eatMass: 12,           // masse rapportee a qui le mange une fois arrete
       // Portee = speed * dt / (1 - friction), soit ~1760 unites ici, parcourues
       // en ~3 s. A titre de repere, un joueur a 1000 de masse voit environ
