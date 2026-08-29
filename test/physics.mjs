@@ -38,6 +38,73 @@ function placePlayer(room, x, y, mass, name = 'T') {
   return p;
 }
 
+// --- 0. Coherence des reglages, tous modes -----------------------------------
+section('Coherence des reglages');
+for (const id of ['classique', 'hardcore', 'demolition']) {
+  const m = getMode(id);
+  // Un virus ne doit jamais naitre au-dessus de son seuil de dedoublement,
+  // sinon le premier tir venu le duplique.
+  check(
+    `${id} : seuil de dedoublement au-dessus de la masse max d un virus`,
+    m.virusSplitMass > (m.virusMassMax ?? m.virusMass),
+    `${m.virusSplitMass} > ${m.virusMassMax ?? m.virusMass}`,
+  );
+  // Tirer ou ejecter au seuil ne doit pas faire passer sous le plancher : sinon
+  // le code doit "rattraper" avec un Math.max(), qui REMONTE la masse au lieu
+  // de la borner. C'est exactement ce qui faisait grossir en tirant.
+  if (m.cannon) {
+    check(
+      `${id} : tirer au seuil ne descend pas sous le plancher`,
+      m.cannon.minMass - m.cannon.cost >= m.minMass,
+      `${m.cannon.minMass} - ${m.cannon.cost} >= ${m.minMass}`,
+    );
+  } else {
+    check(
+      `${id} : ejecter au seuil ne descend pas sous le plancher`,
+      m.ejectMinMass - m.ejectCost >= m.minMass,
+      `${m.ejectMinMass} - ${m.ejectCost} >= ${m.minMass}`,
+    );
+  }
+}
+
+// --- 0b. Aucune action ne doit pouvoir AUGMENTER la masse --------------------
+section('Aucune creation de masse');
+{
+  const room = bareRoom('demolition');
+  const p = placePlayer(room, 5000, 5000, 62, 'T'); // sous le plancher, cas reel
+  const c = p.cells[0];
+
+  room.setTarget(p, 20000, 5000);
+  p.lastFireAt = 0;
+  room.doFire(p);
+  check('tirer ne fait jamais grossir', c.mass <= 62, `62 -> ${Math.round(c.mass)}`);
+
+  c.mass = 62;
+  c.r = massToRadius(62);
+  room.setTarget(p, c.x, c.y);
+  for (let i = 0; i < 25; i++) room.moveCells(room.dt);
+  check('l attrition ne fait jamais grossir', c.mass <= 62, `62 -> ${Math.round(c.mass)}`);
+
+  // Le cas complet : exploser sur un virus puis mitrailler doit faire FONDRE.
+  const r2 = bareRoom('demolition');
+  const q = placePlayer(r2, 5000, 5000, 1000, 'Q');
+  r2.spawnVirus(5000, 5000);
+  r2.rebuildHash();
+  r2.resolveEating();
+  const afterPop = q.score || q.cells.reduce((s, x) => s + x.mass, 0);
+  for (let k = 0; k < 20; k++) {
+    r2.setTarget(q, 20000, 5000);
+    q.lastFireAt = 0;
+    r2.doFire(q);
+    for (let i = 0; i < 10; i++) r2.step();
+  }
+  check(
+    'exploser puis mitrailler fait fondre',
+    q.score < afterPop,
+    `${Math.round(afterPop)} -> ${Math.round(q.score)}`,
+  );
+}
+
 // --- 1. Rayon / masse --------------------------------------------------------
 section('Echelle rayon <-> masse');
 check('masse 10 -> rayon 31.6', Math.abs(massToRadius(10) - 31.62) < 0.02, massToRadius(10).toFixed(2));

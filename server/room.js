@@ -153,13 +153,16 @@ export class Room {
 
   spawnVirus(x, y, gen = 0) {
     const p = x === undefined ? this.randPos() : { x, y };
+    const lo = this.mode.virusMass;
+    const hi = this.mode.virusMassMax ?? lo;
+    const virusMass = lo + Math.random() * (hi - lo);
     const v = {
       id: this.ids.take(),
       kind: KIND.VIRUS,
       x: p.x,
       y: p.y,
-      mass: this.mode.virusMass,
-      r: massToRadius(this.mode.virusMass),
+      mass: virusMass,
+      r: massToRadius(virusMass),
       vx: 0,
       vy: 0,
       feedAngle: 0,
@@ -367,8 +370,15 @@ export class Room {
     const r = massToRadius(cn.eatMass);
     for (const c of p.cells) {
       if (c.mass < cn.minMass) continue;
+      // Meme piege que pour l'attrition : Math.max(minMass, mass - cost)
+      // REMONTAIT la masse d'une cellule deja sous le plancher, au lieu de la
+      // reduire. Une cellule issue d'une explosion sur virus grossissait donc
+      // en tirant. On refuse simplement le tir s'il ferait passer sous le
+      // plancher, sans jamais rien ajouter.
+      const after = c.mass - cn.cost;
+      if (after < this.mode.minMass) continue;
       const ang = Math.atan2(p.targetY - c.y, p.targetX - c.x);
-      c.mass = Math.max(this.mode.minMass, c.mass - cn.cost);
+      c.mass = after;
       c.r = massToRadius(c.mass);
       const b = {
         id: this.ids.take(),
@@ -406,8 +416,15 @@ export class Room {
       let score = 0;
       for (const c of p.cells) {
         if (c.mass > m.decayMin) {
-          c.mass = Math.max(m.minMass, c.mass * (1 - m.decayRate * dt));
-          c.r = massToRadius(c.mass);
+          // Le plancher ne doit JAMAIS remonter une masse. Une cellule peut
+          // legitimement passer sous minMass (les morceaux d'une explosion sur
+          // virus valent une fraction du total) : ecrire Math.max(minMass, ...)
+          // la faisait alors GROSSIR en fondant.
+          const decayed = c.mass * (1 - m.decayRate * dt);
+          if (decayed > m.minMass) {
+            c.mass = decayed;
+            c.r = massToRadius(c.mass);
+          }
         }
         const dx = p.targetX - c.x;
         const dy = p.targetY - c.y;

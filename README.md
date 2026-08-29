@@ -299,6 +299,30 @@ npm run test:net
 > `cmd.exe`, qui n'a pas forcément Node dans son `PATH`. Les fichiers se lancent directement
 > (`node test/physics.mjs`).
 
+## Calibrage
+
+Les constantes de base ont été recoupées avec [owenashurst/agar.io-clone](https://github.com/owenashurst/agar.io-clone)
+(MIT, © 2015 Huy Tran), une implémentation open source de référence du genre. Aucun code n'en a été
+repris — seules les **valeurs** ont servi de point de comparaison :
+
+| Paramètre | Référence | Ici |
+|---|---|---|
+| Masse de départ | 10 | 10 |
+| Cellules max | 16 | 16 |
+| Seuil de dédoublement d'un virus | 180 | 180 |
+| Masse d'un virus | 100–150 (aléatoire) | 100–150 |
+| Seuil d'attrition | 50 | 50 |
+| Densité de nourriture | 4,0 / 100k unités² | 2,7 |
+
+La densité est le seul écart assumé : à 4,0 la bande passante monte à 68 ko/s par joueur, contre
+~38 à 2,7. C'est un arbitrage d'hébergement, pas de gameplay.
+
+Le mode **Demolition n'existe pas** dans cette référence — c'est un clone d'agar.io classique, sans
+tir. Ses mécaniques viennent de `jeu.video/agario`, dont le serveur fait autorité et ne publie
+aucune constante de gameplay : son API expose la taille de carte (24000×24000) et le nombre de
+joueurs, rien d'autre. Les valeurs du canon sont donc les nôtres, calibrées pour reproduire le
+comportement observé.
+
 ## Licence
 
 MIT.

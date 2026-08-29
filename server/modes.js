@@ -44,14 +44,19 @@ export const BASE = {
 
   // --- Attrition -----------------------------------------------------------
   decayRate: 0.002,      // fraction de masse perdue par seconde
-  decayMin: 100,         // en dessous de cette masse, pas d'attrition
+  decayMin: 50,          // en dessous de cette masse, pas d'attrition
 
   // --- Manger --------------------------------------------------------------
   eatRatio: 1.25,        // il faut etre 25% plus gros
   eatOverlap: 0.4,       // fraction de recouvrement exigee
 
   // --- Virus ---------------------------------------------------------------
-  virusMass: 100,
+  // Masse d'un virus, tiree au hasard dans cet intervalle a chaque apparition.
+  // Une masse fixe rendait tous les virus identiques : il fallait toujours le
+  // meme nombre de tirs pour en dedoubler un. Avec une masse variable, certains
+  // sont deja proches du seuil et d'autres non, ce qui rend leur lecture utile.
+  virusMass: 100,        // plancher, sert aussi de masse de reinitialisation
+  virusMassMax: 150,
   virusSplitMass: 180,   // masse a laquelle un virus nourri en ejecte un nouveau
   // La duplication est bornee PAR VIRUS, pas par un plafond global : un plafond
   // global punit tout le monde des qu'un seul joueur mitraille les virus, et
@@ -92,8 +97,9 @@ export const MODES = {
     // Physique de reference. Le monde est dimensionne pour la population reelle
     // d'un serveur auto-heberge : sur 14142 unites, l'arene parait vide.
     world: 11180,
-    foodCount: 2600,
-    virusCount: 45,
+    foodCount: 3400,   // densite 2.7 : la reference est a 4.0, mais 4.0 fait
+                       // grimper la bande passante a 68 ko/s par joueur (cf. README)
+    virusCount: 90,
     bots: 35,
   },
 
@@ -109,8 +115,8 @@ export const MODES = {
     icon: 'flame',
     maxPlayers: 800,
     world: 9000,             // arene plus serree : on se croise vite
-    foodCount: 1300,
-    virusCount: 26,
+    foodCount: 2200,   // meme densite que classique
+    virusCount: 60,
     bots: 30,
     speedMul: 1.25,          // ca va plus vite
     decayRate: 0.004,        // on fond deux fois plus vite
@@ -135,15 +141,29 @@ export const MODES = {
     // il faut un monde plus grand pour que la vue ne couvre pas la carte entiere.
     world: 13000,
     startMass: 1000,
-    minMass: 100,            // on ne redescend jamais sous 100
-    foodCount: 1500,
-    virusCount: 28,
+    // Plancher bas : une explosion sur virus produit 16 morceaux d'environ 62,
+    // donc bien en dessous. Un plancher a 100 rendait ces morceaux incapables
+    // de tirer, et surtout il servait de pretexte a des Math.max() qui
+    // REMONTAIENT leur masse. Voir doFire() et moveCells().
+    minMass: 20,
+    // On demarre a 1000 de masse, donc la camera est tres dezoomee et le champ
+    // de vision couvre ~4,5x plus de surface que dans les autres modes. A la
+    // densite de reference, un joueur recevrait plus de 1300 pastilles par
+    // snapshot : intenable en bande passante. On double la densite precedente
+    // sans aller jusqu'a la reference - compromis assume, mesure dans le README.
+    foodCount: 1700,
+    virusCount: 55,
     bots: 30,
     decayRate: 0.003,
     speedMul: 1.5,           // sinon 1000 de masse = une limace
-    // Seuil de duplication abaisse pour ce mode : avec 12 par projectile, le
-    // seuil commun de 180 demanderait 7 tirs. A 148, il en faut 4.
-    virusSplitMass: 148,
+    // Seuil de duplication ajuste pour ce mode : avec 12 par projectile, le
+    // seuil commun de 180 demanderait jusqu'a 7 tirs. A 172 il en faut 4 pour
+    // un virus de masse moyenne (125), 2 pour un gros, 6 pour un petit.
+    //
+    // Le seuil doit IMPERATIVEMENT rester au-dessus de virusMassMax (150),
+    // sinon les virus les plus gros naissent deja au-dessus et se dedoublent
+    // des le premier tir.
+    virusSplitMass: 172,
     // Les virus se mangent et font exploser, comme dans les autres modes : le
     // seuil de base s'applique. (Il avait ete releve a 2500 pour proteger le
     // canon quand seule la plus grosse cellule pouvait tirer et qu'il fallait
