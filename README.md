@@ -72,11 +72,23 @@ Le cœur du mode tient en trois règles qui se répondent :
 
 - **Toutes les cellules tirent en même temps.** Une salve part de chaque morceau, pas seulement du
   plus gros. Être éclaté n'affaiblit donc pas la puissance de feu — ça la disperse.
-- **Le tir est bon marché** (12 de masse) mais **le projectile ne disparaît pas** : il ralentit,
-  s'immobilise, et devient alors ramassable — pour **22**, soit plus qu'il n'a coûté. Mitrailler à
-  l'aveugle nourrit donc l'adversaire. On peut aussi revenir chercher ses propres tirs perdus.
+- **Le tir est bon marché** (16 de masse) et **le projectile ne disparaît pas** : il ralentit,
+  s'immobilise, et devient alors ramassable pour **12** — soit six pastilles d'un coup. Mitrailler à
+  l'aveugle nourrit donc l'adversaire, et on peut revenir chercher ses propres tirs perdus.
 - **Tirer sur un virus le nourrit**, exactement comme la masse éjectée : au bout de quatre
   projectiles il se duplique et le nouveau part dans la direction du tir.
+
+Deux invariants tiennent cette économie, et les casser rend le mode injouable :
+
+**`eatMass` doit rester inférieur à `cost`.** Sinon tirer *crée* de la masse à partir de rien, et
+comme on peut ramasser ses propres projectiles, il suffit de tirer en boucle pour grossir sans
+limite. C'est la même règle que l'éjection classique, qui coûte 18 pour une pastille de 14.
+
+**La duplication des virus doit être plafonnée.** Nourrir un virus en crée un nouveau, qui peut à
+son tour être nourri : sans plafond, quelques joueurs qui mitraillent les virus tapissent l'arène
+en une minute. Le plafond vaut `virusCount × virusMaxFactor` (1,6 par défaut) ; au plafond le tir
+est absorbé sans rien créer. Le surplus se résorbe ensuite très lentement — un virus toutes les
+20 s — pour que l'arène redevienne normale sans annuler la duplication deux secondes après coup.
 
 La portée se calcule : `speed × dt / (1 − friction)`, soit environ **1760 unités** parcourues en 3 s.
 Le repère utile est le champ de vision — un joueur à 1000 de masse voit environ 2600 unités autour de

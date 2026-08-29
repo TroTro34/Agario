@@ -95,6 +95,13 @@ export class Room {
 
     this.hash = new SpatialHash(this.world, 256);
 
+    // Plafond de virus : nourrir un virus en cree un nouveau, il faut donc
+    // borner la croissance (cf. feedVirus).
+    this.virusCap = Math.max(
+      mode.virusCount,
+      Math.round(mode.virusCount * (mode.virusMaxFactor ?? 1.6)),
+    );
+
     // Nombre de joueurs humains. Un salon sans humain n'est pas simule du tout
     // (voir la boucle dans index.js) : sur un petit hebergement, faire tourner
     // trois arenes en continu pour personne consomme tout le quota CPU.
@@ -609,8 +616,14 @@ export class Room {
       v.r = massToRadius(v.mass);
       return false;
     }
+
+    // Le virus est mur, mais on ne depasse jamais le plafond : sinon quelques
+    // joueurs qui mitraillent les virus tapissent l'arene et la partie est
+    // finie. Au plafond, le tir est simplement absorbe.
     v.mass = m.virusMass;
     v.r = massToRadius(v.mass);
+    if (this.viruses.size >= this.virusCap) return false;
+
     const nv = this.spawnVirus(v.x, v.y);
     nv.vx = Math.cos(angle) * m.virusFeedSpeed;
     nv.vy = Math.sin(angle) * m.virusFeedSpeed;
@@ -709,7 +722,19 @@ export class Room {
       const n = Math.min(need, 24);
       for (let i = 0; i < n; i++) this.spawnFood();
     }
+    // On complete jusqu'a la cible, et on resorbe le surplus cree par les tirs.
+    // TRES lentement (un virus toutes les 20 s) : c'est un retour a la normale
+    // sur la duree d'une partie, pas une annulation de la duplication. Retirer
+    // le surplus en quelques secondes rendrait le fait de nourrir un virus sans
+    // effet. Le plafond, lui, borne deja la croissance (cf. feedVirus).
     while (this.viruses.size < m.virusCount) this.spawnVirus();
+    if (this.viruses.size > m.virusCount && this.tick % 500 === 0) {
+      const id = this.viruses.keys().next().value;
+      if (id !== undefined) {
+        this.viruses.delete(id);
+        this.ids.give(id);
+      }
+    }
   }
 
   // --- Vue joueur ------------------------------------------------------------

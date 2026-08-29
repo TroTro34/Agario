@@ -166,7 +166,14 @@ section('Canon (Demolition)');
     `cout de ${cn.cost} de masse`,
     Math.abs(massBefore - shooter.cells[0].mass - cn.cost) < 0.01,
   );
-  check('tirer coute moins que ce que le projectile rapporte', cn.cost < cn.eatMass, `${cn.cost} < ${cn.eatMass}`);
+  // Invariant central de l'economie : un projectile doit rapporter MOINS qu'il
+  // n'a coute. Sinon tirer cree de la masse, et le tireur qui ramasse ses
+  // propres tirs grossit sans limite.
+  check(
+    'un projectile rapporte moins qu il ne coute',
+    cn.eatMass < cn.cost,
+    `${cn.eatMass} < ${cn.cost}`,
+  );
 
   // Le projectile doit apparaitre dans le hash, sinon il est invisible du client.
   room.rebuildHash();
@@ -223,32 +230,83 @@ section('Salve et projectiles immobilises');
 // --- 7bis. Tirer sur un virus le duplique ------------------------------------
 section('Projectiles et virus');
 {
-  const room = bareRoom('demolition');
+  // virusCount explicite : bareRoom le met a 0 par defaut, ce qui donnerait un
+  // plafond nul et ferait resorber le virus par replenish() pendant le test.
+  const room = bareRoom('demolition', { virusCount: 1 });
   const cn = room.mode.cannon;
   const p = placePlayer(room, 3000, 3000, 900, 'Tireur');
-  const v = room.spawnVirus(4200, 3000);
+  const v = room.viruses.values().next().value;
+  v.x = 4200;
+  v.y = 3000;
   room.setTarget(p, 20000, 3000);
 
   const needed = Math.ceil((room.mode.virusSplitMass - room.mode.virusMass) / cn.eatMass);
   check('le virus grossit sous les tirs', true, `${needed} projectiles attendus`);
 
+  // Le tireur doit rester sur place. Viser un point lointain pour orienter les
+  // tirs le fait AUSSI avancer : il finissait par percuter le virus, explosait
+  // en 16 morceaux, et le "virus disparu" etait en fait un virus mange.
+  const pin = () => {
+    p.cells[0].x = 3000;
+    p.cells[0].y = 3000;
+  };
+  const salve = () => {
+    pin();
+    p.lastFireAt = 0;
+    room.doFire(p);
+    for (let i = 0; i < 40; i++) {
+      room.step();
+      pin();
+    }
+  };
+
   let before = v.mass;
-  p.lastFireAt = 0;
-  room.doFire(p);
-  for (let i = 0; i < 40; i++) room.step();
+  salve();
   check('un projectile nourrit le virus', v.mass > before, `${before} -> ${Math.round(v.mass)}`);
 
   // On tire jusqu'au seuil : un nouveau virus doit apparaitre.
   const virusesBefore = room.viruses.size;
-  for (let shot = 0; shot < needed; shot++) {
-    p.lastFireAt = 0;
-    room.doFire(p);
-    for (let i = 0; i < 40; i++) room.step();
-  }
+  for (let shot = 0; shot < needed; shot++) salve();
   check(
     'au seuil, le virus se duplique',
     room.viruses.size > virusesBefore,
     `${virusesBefore} -> ${room.viruses.size} virus`,
+  );
+}
+
+// --- 7ter. La duplication est bornee -----------------------------------------
+section('Plafond de virus');
+{
+  const room = bareRoom('demolition', { virusCount: 4 });
+  const p = placePlayer(room, 5000, 5000, 120, 'Q'); // < virusEatMinMass : n'explose pas
+  // On regroupe les virus devant le tireur pour qu'ils recoivent les tirs.
+  let k = 0;
+  for (const v of room.viruses.values()) {
+    v.x = 5600 + k * 40;
+    v.y = 5000;
+    k++;
+  }
+  check('un plafond est defini', room.virusCap > room.mode.virusCount, `${room.mode.virusCount} -> ${room.virusCap}`);
+
+  let peak = 0;
+  for (let salve = 0; salve < 120; salve++) {
+    // On maintient la masse pour pouvoir continuer a tirer.
+    p.cells[0].mass = 120;
+    p.cells[0].r = massToRadius(120);
+    room.setTarget(p, 30000, 5000);
+    p.lastFireAt = 0;
+    room.doFire(p);
+    for (let i = 0; i < 20; i++) room.step();
+    peak = Math.max(peak, room.viruses.size);
+  }
+  check('120 salves ne depassent pas le plafond', peak <= room.virusCap, `pic ${peak} / plafond ${room.virusCap}`);
+
+  // Le surplus se resorbe une fois le calme revenu.
+  for (let i = 0; i < 800; i++) room.step();
+  check(
+    'le surplus se resorbe',
+    room.viruses.size <= room.mode.virusCount,
+    `${room.viruses.size} virus pour une cible de ${room.mode.virusCount}`,
   );
 }
 

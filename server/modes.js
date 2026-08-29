@@ -53,6 +53,11 @@ export const BASE = {
   // --- Virus ---------------------------------------------------------------
   virusMass: 100,
   virusSplitMass: 180,   // masse a laquelle un virus nourri en ejecte un nouveau
+  // Plafond dur. Nourrir un virus en cree un nouveau : sans limite, quelques
+  // joueurs qui tirent sur les virus tapissent l'arene et la partie est finie.
+  // Au plafond, le tir est absorbe sans rien creer. Exprime en multiple de
+  // virusCount pour rester coherent quand on retouche la densite d'un mode.
+  virusMaxFactor: 1.6,
   virusFeedSpeed: 700,
   virusEatMinMass: 133,  // en dessous, on peut traverser un virus sans exploser
 
@@ -130,6 +135,9 @@ export const MODES = {
     bots: 30,
     decayRate: 0.003,
     speedMul: 1.5,           // sinon 1000 de masse = une limace
+    // Seuil de duplication abaisse pour ce mode : avec 12 par projectile, le
+    // seuil commun de 180 demanderait 7 tirs. A 148, il en faut 4.
+    virusSplitMass: 148,
     // Les virus se mangent et font exploser, comme dans les autres modes : le
     // seuil de base s'applique. (Il avait ete releve a 2500 pour proteger le
     // canon quand seule la plus grosse cellule pouvait tirer et qu'il fallait
@@ -143,9 +151,13 @@ export const MODES = {
     // donc l'adversaire - c'est tout l'equilibre du mode.
     cannon: {
       minMass: 40,           // masse mini d'une cellule pour tirer
-      cost: 12,              // masse perdue par tir et par cellule
+      // eatMass DOIT rester inferieur a cost, sinon tirer cree de la masse a
+      // partir de rien : le tireur ramasse ses propres tirs et grossit sans
+      // limite. Meme regle que l'ejection classique (18 pour une pastille
+      // de 14). Le gain reste gros pour l'adversaire : 12, soit six pastilles.
+      cost: 16,              // masse perdue par tir et par cellule
       damage: 20,            // masse arrachee a la cible en vol
-      eatMass: 22,           // masse rapportee a qui le mange une fois arrete
+      eatMass: 12,           // masse rapportee a qui le mange une fois arrete
       // Portee = speed * dt / (1 - friction), soit ~1760 unites ici, parcourues
       // en ~3 s. A titre de repere, un joueur a 1000 de masse voit environ
       // 2600 unites autour de lui : le tir porte donc loin dans l'ecran.
