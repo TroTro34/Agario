@@ -341,42 +341,45 @@ section('Projectiles et virus');
   );
 }
 
-// --- 7ter. La duplication est bornee PAR VIRUS -------------------------------
-section('Limite de dedoublement par virus');
+// --- 7ter. Un virus se dedouble sans limite propre ---------------------------
+section('Dedoublement des virus');
 {
-  const room = bareRoom('demolition', { virusCount: 1 });
+  // virusCount assez grand pour que le plafond (x3) ne soit pas atteint avant
+  // d'avoir teste le dedoublement d'un descendant.
+  const room = bareRoom('demolition', { virusCount: 10 });
   const m = room.mode;
   const v = room.viruses.values().next().value;
 
-  // On nourrit le meme virus bien au-dela de ce qu'il peut engendrer.
+  // Le MEME virus doit pouvoir etre dedouble bien plus de deux fois : une
+  // limite par virus bloquait la multiplication a 3, ce qui ne correspond pas
+  // au comportement attendu.
   let created = 0;
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < 8; i++) {
     if (room.feedVirus(v, m.virusSplitMass, 0)) created++;
   }
   check(
-    'un virus ne se dedouble qu un nombre limite de fois',
-    created === m.virusMaxSpawns,
-    `${created} dedoublements pour une limite de ${m.virusMaxSpawns}`,
+    'un meme virus se dedouble plus de deux fois',
+    created > 2,
+    `${created} dedoublements depuis un seul virus`,
   );
 
-  // Les descendants ne doivent pas relancer la chaine a l'infini.
-  const child = [...room.viruses.values()].find((x) => x.gen > 0);
-  check('les descendants sont marques', Boolean(child), child ? `gen ${child.gen}` : 'aucun');
+  // Les descendants se dedoublent aussi : la chaine n'est pas sterile.
+  const child = [...room.viruses.values()].pop();
   let fromChild = 0;
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < 4; i++) {
     if (room.feedVirus(child, m.virusSplitMass, 0)) fromChild++;
   }
-  check(
-    'a la profondeur maximale, la lignee s arrete',
-    fromChild === 0,
-    `${fromChild} dedoublements depuis un virus de gen ${child.gen}`,
-  );
+  check('un descendant se dedouble aussi', fromChild > 0, `${fromChild} depuis un descendant`);
 
-  // Total borne, sans jamais avoir regarde le nombre total de virus.
+  // Seul un plafond global finit par arreter la croissance.
+  for (let i = 0; i < 400; i++) {
+    for (const x of [...room.viruses.values()]) room.feedVirus(x, m.virusSplitMass, 0);
+    if (room.viruses.size >= room.virusCap) break;
+  }
   check(
-    'croissance totale bornee',
-    room.viruses.size === 1 + m.virusMaxSpawns,
-    `${room.viruses.size} virus au final`,
+    'la croissance s arrete au plafond global',
+    room.viruses.size === room.virusCap,
+    `${room.viruses.size} virus pour un plafond de ${room.virusCap}`,
   );
 }
 

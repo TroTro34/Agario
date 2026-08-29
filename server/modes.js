@@ -58,17 +58,16 @@ export const BASE = {
   virusMass: 100,        // plancher, sert aussi de masse de reinitialisation
   virusMassMax: 150,
   virusSplitMass: 180,   // masse a laquelle un virus nourri en ejecte un nouveau
-  // La duplication est bornee PAR VIRUS, pas par un plafond global : un plafond
-  // global punit tout le monde des qu'un seul joueur mitraille les virus, et
-  // rend le resultat d'un tir dependant de ce que font les autres a l'autre
-  // bout de la carte.
+  // Un virus se dedouble autant de fois qu'on le nourrit : AUCUNE limite par
+  // virus, et les descendants se dedoublent a leur tour. La seule borne est un
+  // plafond global genereux, comme dans les implementations de reference du
+  // genre (leur "maxVirus").
   //
-  // Chaque virus ne peut se dedoubler qu'un nombre limite de fois, et la
-  // lignee a une profondeur maximale. Un virus d'origine engendre donc au plus
-  // virusMaxSpawns descendants, qui eux-memes n'engendrent plus rien : la
-  // croissance est bornee sans jamais regarder le total.
-  virusMaxSpawns: 2,     // dedoublements possibles pour un meme virus
-  virusMaxGen: 1,        // profondeur de lignee (0 = seuls les virus d'origine)
+  // Une limite par virus a ete essayee (2 dedoublements, lignee de profondeur
+  // 1) : elle bloquait la multiplication a 3 virus, ce qui ne correspond pas au
+  // comportement observe en jeu. Exprime en multiple de virusCount pour rester
+  // coherent quand on retouche la densite d'un mode.
+  virusMaxFactor: 3,
   virusFeedSpeed: 700,
   virusEatMinMass: 133,  // en dessous, on peut traverser un virus sans exploser
 

@@ -95,6 +95,13 @@ export class Room {
 
     this.hash = new SpatialHash(this.world, 256);
 
+    // Plafond global de virus. Nourrir un virus en cree un nouveau, sans limite
+    // par virus : il faut donc une borne d'ensemble (cf. feedVirus).
+    this.virusCap = Math.max(
+      mode.virusCount,
+      Math.round(mode.virusCount * (mode.virusMaxFactor ?? 3)),
+    );
+
     // Nombre de joueurs humains. Un salon sans humain n'est pas simule du tout
     // (voir la boucle dans index.js) : sur un petit hebergement, faire tourner
     // trois arenes en continu pour personne consomme tout le quota CPU.
@@ -151,7 +158,7 @@ export class Room {
     return f;
   }
 
-  spawnVirus(x, y, gen = 0) {
+  spawnVirus(x, y) {
     const p = x === undefined ? this.randPos() : { x, y };
     const lo = this.mode.virusMass;
     const hi = this.mode.virusMassMax ?? lo;
@@ -166,9 +173,6 @@ export class Room {
       vx: 0,
       vy: 0,
       feedAngle: 0,
-      // Bornes portees par le virus lui-meme (cf. feedVirus).
-      gen, // profondeur dans la lignee : 0 = virus d'origine
-      spawns: 0, // dedoublements deja produits par CE virus
     };
     this.viruses.set(v.id, v);
     return v;
@@ -630,16 +634,15 @@ export class Room {
       return false;
     }
 
-    // Le virus est mur. Reste a savoir s'il a encore le droit de se dedoubler :
-    // la limite est portee par LUI (nombre de dedoublements deja produits, et
-    // profondeur de sa lignee), jamais par le nombre total de virus en jeu.
-    // Un virus epuise absorbe le tir sans rien creer.
+    // Le virus est mur : il se dedouble, sans limite propre. Un virus peut donc
+    // etre dedouble indefiniment, et ses descendants aussi. Seul un plafond
+    // global genereux borne l'ensemble, pour qu'une arene ne finisse pas
+    // integralement tapissee ; au plafond, nourrir ne fait plus rien.
     v.mass = m.virusMass;
     v.r = massToRadius(v.mass);
-    if (v.spawns >= m.virusMaxSpawns || v.gen >= m.virusMaxGen) return false;
+    if (this.viruses.size >= this.virusCap) return false;
 
-    v.spawns++;
-    const nv = this.spawnVirus(v.x, v.y, v.gen + 1);
+    const nv = this.spawnVirus(v.x, v.y);
     nv.vx = Math.cos(angle) * m.virusFeedSpeed;
     nv.vy = Math.sin(angle) * m.virusFeedSpeed;
     return true;

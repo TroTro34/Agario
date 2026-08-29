@@ -89,13 +89,14 @@ limite. C'est la même règle que l'éjection classique, qui coûte 18 pour une 
 16, arroser coûte toujours plus que ça ne rapporte : tirer redevient un outil tactique — affaiblir
 une cible pour la manger — et non une façon de farmer.
 
-**La duplication des virus est bornée par virus, jamais par un total.** Nourrir un virus en crée un
-nouveau, qui peut à son tour être nourri. Un plafond global serait le mauvais levier : il punit tout
-le monde dès qu'un seul joueur mitraille les virus, et rend le résultat d'un tir dépendant de ce que
-font les autres à l'autre bout de la carte. Chaque virus porte donc ses propres limites —
-`virusMaxSpawns` dédoublements, et une profondeur de lignée `virusMaxGen`. Un virus d'origine
-engendre au plus deux descendants, qui n'engendrent plus rien : la croissance est bornée sans
-jamais compter les virus en jeu.
+**Les virus se dédoublent sans limite propre.** Un même virus peut être nourri et dédoublé
+indéfiniment, et ses descendants aussi. La seule borne est un plafond global généreux
+(`virusMaxFactor`, ×3 par défaut) ; au plafond, nourrir un virus ne fait plus rien.
+
+Une limite portée par chaque virus a été essayée — deux dédoublements, lignée de profondeur 1 —
+mais elle bloquait la multiplication à trois virus, ce qui ne correspond pas au comportement
+attendu. C'est aussi ce que font les implémentations de référence du genre, qui bornent avec un
+simple `maxVirus`.
 
 La portée se calcule : `speed × dt / (1 − friction)`, soit environ **1760 unités** parcourues en 3 s.
 Le repère utile est le champ de vision — un joueur à 1000 de masse voit environ 2600 unités autour de
