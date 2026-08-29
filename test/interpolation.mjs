@@ -307,6 +307,43 @@ report(runTurn({ label: 'retard entree  50 ms', inputLagMs: 50 }), 18);
 report(runTurn({ label: 'retard entree 100 ms', inputLagMs: 100 }), 18);
 report(runTurn({ label: 'retard entree 180 ms', inputLagMs: 180 }), 18);
 
+// -----------------------------------------------------------------------------
+// Garde-fou : un identifiant reattribue ne doit jamais produire d'interpolation.
+// C'est le bug des pastilles qui traversaient l'ecran a toute vitesse.
+// -----------------------------------------------------------------------------
+{
+  const net = new Net();
+  net.selfId = 999; // aucune cellule a nous : pas de prediction ici
+  let clock = 0;
+  const realNow = performance.now.bind(performance);
+  performance.now = () => clock;
+
+  const pellet = (x) => encodeSnapshot([{ kind: KIND.FOOD, id: 42, x, y: 3000, color: 1 }], 0);
+
+  clock = 0;
+  net._snapshot(pellet(1000));
+  clock = 40;
+  net._snapshot(pellet(1040)); // deplacement plausible
+  clock = 80;
+  net._snapshot(pellet(9000)); // meme id, a l'autre bout : id recycle
+
+  // On se place au milieu de la derniere paire : sans garde-fou on lirait une
+  // position intermediaire (~5000), preuve d'une interpolation a travers l'ecran.
+  clock = 80 + net.delay - 20;
+  net.interpolate(clock, null);
+  const x = net.entities.get(42)?.x ?? 0;
+  performance.now = realNow;
+
+  const ok = x > 8000 || x < 1100;
+  if (!ok) failed++;
+  console.log('');
+  console.log('  -- identifiant reattribue --');
+  console.log(
+    `  ${ok ? 'OK  ' : 'FAIL'} pas d interpolation a travers l ecran : x = ${Math.round(x)}` +
+      ' (une valeur intermediaire trahirait le bug)',
+  );
+}
+
 console.log('');
 console.log(failed === 0 ? 'RENDU FLUIDE' : `${failed} SCENARIO(S) SACCADE(S)`);
 process.exit(failed === 0 ? 0 : 1);

@@ -399,7 +399,15 @@ export class Net {
       e.kind = r1.kind;
       e.ownerId = r1.ownerId;
       e.color = r1.color;
-      if (r0) {
+      // Garde-fou : un bond trop grand pour etre un deplacement reel signale
+      // un identifiant reattribue a une AUTRE entite (ou une teleportation).
+      // Sans ca, on interpole entre les deux positions et l'entite traverse
+      // l'ecran. A 25 snapshots/s, le plus rapide du jeu (un obus a 1150 px/s)
+      // parcourt 46 unites : 300 laisse une marge tres large.
+      const jumped =
+        r0 && ((r1.x - r0.x) ** 2 + (r1.y - r0.y) ** 2 > 300 * 300 || r0.kind !== r1.kind);
+
+      if (r0 && !jumped) {
         // Entite presente dans les deux snapshots : interpolation classique.
         e.x = r0.x + (r1.x - r0.x) * a;
         e.y = r0.y + (r1.y - r0.y) * a;

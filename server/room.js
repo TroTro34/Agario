@@ -20,20 +20,47 @@ function speedFor(mass, speedMul) {
   return Math.max(MIN_SPEED, 2.2 * Math.pow(mass, -0.439) * SPEED_SCALE * speedMul);
 }
 
-// Pool d'identifiants u16 recycles (voir protocol.js).
+/**
+ * Distributeur d'identifiants u16 (voir protocol.js).
+ *
+ * Les identifiants avancent et ne sont JAMAIS reutilises immediatement.
+ *
+ * C'est essentiel : le client interpole les entites par identifiant. Si le
+ * serveur libere l'id d'une pastille mangee et le redonne aussitot a une
+ * pastille creee ailleurs - ce que faisait la version precedente, avec une
+ * pile LIFO -, le client croit voir la MEME entite a deux endroits et
+ * interpole entre les deux. Les pastilles traversent alors l'ecran a toute
+ * vitesse, en permanence.
+ *
+ * Au rebouclage on saute les identifiants encore occupes, ce qui protege les
+ * entites de longue duree comme les virus.
+ */
 class IdPool {
-  constructor() {
+  constructor(room) {
+    this.room = room;
     this.next = 1;
-    this.free = [];
   }
+
   take() {
-    if (this.free.length) return this.free.pop();
-    if (this.next >= 65535) this.next = 1;
-    return this.next++;
+    const r = this.room;
+    for (let i = 0; i < 65534; i++) {
+      if (this.next >= 65535) this.next = 1;
+      const id = this.next++;
+      if (
+        !r.food.has(id) &&
+        !r.cells.has(id) &&
+        !r.viruses.has(id) &&
+        !r.ejected.has(id) &&
+        !r.bullets.has(id)
+      ) {
+        return id;
+      }
+    }
+    return this.next++; // saturation totale : ne peut pas arriver ici
   }
-  give(id) {
-    if (this.free.length < 4096) this.free.push(id);
-  }
+
+  // Conserve pour ne pas disperser les appels : liberer un id ne fait plus rien.
+  give() {}
 }
 
 let PLAYER_SEQ = 1;
@@ -44,7 +71,6 @@ export class Room {
     this.tickRate = opts.tickRate ?? 25;
     this.dt = 1 / this.tickRate;
     this.world = mode.world;
-    this.ids = new IdPool();
     this.tick = 0;
 
     this.players = new Map();
@@ -53,6 +79,10 @@ export class Room {
     this.ejected = new Map();
     this.bullets = new Map();
     this.cells = new Map();
+
+    // Apres les collections : le distributeur les consulte pour ne jamais
+    // reattribuer un identifiant encore occupe.
+    this.ids = new IdPool(this);
 
     this.hash = new SpatialHash(this.world, 256);
 

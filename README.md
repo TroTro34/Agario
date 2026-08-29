@@ -181,6 +181,18 @@ bonds inégaux et **toute la scène tremble, terrain compris**. Mesuré, l'irré
 La diffusion se fait donc **dans la boucle de simulation**, tous les N pas exactement — et non dans
 un `setInterval` séparé, qui dériverait de toute façon.
 
+#### Ne jamais réutiliser un identifiant tout de suite
+
+Le client interpole les entités **par identifiant**. Si le serveur libère l'id d'une pastille mangée
+et le redonne aussitôt à une pastille créée ailleurs, le client croit voir la même entité à deux
+endroits et interpole entre les deux : les pastilles **traversent l'écran à toute vitesse**, en
+permanence, à chaque pastille mangée.
+
+Les identifiants avancent donc sans jamais être recyclés immédiatement, et au rebouclage (65535) on
+saute ceux encore occupés, ce qui protège les entités de longue durée comme les virus. Le client
+garde en plus un garde-fou : un bond de plus de 300 unités entre deux snapshots — six fois ce que
+parcourt l'entité la plus rapide du jeu — est traité comme une téléportation, donc sans interpolation.
+
 #### Ne pas aligner la grille sur les pixels
 
 Arrondir les lignes de la grille à des pixels entiers les rend nettes, mais chacune saute d'un pixel

@@ -193,6 +193,55 @@ section('Attrition');
   check('petite cellule non erodee', Math.abs(q.cells[0].mass - q0) < 0.001);
 }
 
+// --- 9. Identifiants ---------------------------------------------------------
+section('Identifiants (le client interpole par id)');
+{
+  const room = bareRoom('classique', { foodCount: 40 });
+  for (let i = 0; i < 40; i++) room.spawnFood();
+
+  // On mange une pastille, puis on en fait reapparaitre : l'id libere ne doit
+  // PAS etre redonne aussitot, sinon le client interpole entre deux endroits
+  // sans rapport et la pastille traverse l'ecran.
+  const victim = room.food.values().next().value;
+  const freed = victim.id;
+  room.food.delete(freed);
+  room.ids.give(freed);
+
+  const reused = [];
+  for (let i = 0; i < 30; i++) reused.push(room.spawnFood().id);
+  check(
+    'un id libere n est pas reattribue aussitot',
+    !reused.includes(freed),
+    `id ${freed} vs 30 nouveaux`,
+  );
+
+  // Aucun doublon parmi toutes les entites vivantes.
+  const all = [
+    ...room.food.keys(),
+    ...room.cells.keys(),
+    ...room.viruses.keys(),
+    ...room.ejected.keys(),
+    ...room.bullets.keys(),
+  ];
+  check('aucun identifiant en double', new Set(all).size === all.length, `${all.length} entites`);
+
+  // Sous forte rotation (le cas reel : les bots mangent en continu), les ids
+  // distribues doivent rester tous distincts.
+  const room2 = bareRoom('classique', { foodCount: 60 });
+  for (let i = 0; i < 60; i++) room2.spawnFood();
+  const seen = new Set();
+  let collisions = 0;
+  for (let cycle = 0; cycle < 200; cycle++) {
+    const f = room2.food.values().next().value;
+    room2.food.delete(f.id);
+    room2.ids.give(f.id);
+    const nf = room2.spawnFood();
+    if (seen.has(nf.id) && room2.food.has(nf.id)) collisions++;
+    seen.add(nf.id);
+  }
+  check('200 cycles manger/reapparaitre sans collision', collisions === 0, `${collisions}`);
+}
+
 console.log('\n' + results.join('\n'));
 console.log(failed === 0 ? '\nTOUS LES TESTS PASSENT' : `\n${failed} VERIFICATION(S) EN ECHEC`);
 process.exit(failed === 0 ? 0 : 1);
