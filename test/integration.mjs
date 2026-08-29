@@ -102,6 +102,7 @@ async function testMode(mode) {
     }
   });
 
+  const startedAt = Date.now();
   ws.send(JSON.stringify({ t: 'join', name: `Test_${mode}`, skin: 'star', mode, color: 3 }));
   await sleep(500);
 
@@ -149,7 +150,9 @@ async function testMode(mode) {
       : md.startMass >= md.ejectMinMass,
     snapshots: state.snapshots,
     entities: state.last?.total ?? 0,
-    kbPerSec: (state.bytes / 1024 / 2.6).toFixed(1),
+    // Duree reellement mesuree : une constante en dur fausse le chiffre des
+    // que la sequence du test change.
+    kbPerSec: (state.bytes / 1024 / ((Date.now() - startedAt) / 1000)).toFixed(1),
     moved,
     maxCells: state.maxCells,
     sawProjectile: md.cannon ? state.sawBullet : state.sawEjected,

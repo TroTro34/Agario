@@ -128,36 +128,54 @@ C'est le réglage qui rend le projet viable sur un petit hébergement.
 
 L'autre point à surveiller sur un hébergement gratuit. Consommation mesurée, par joueur :
 
-| Mode | Entités visibles | Débit |
-|---|---|---|
-| Classique | ~170 | ~25 ko/s |
-| Hardcore | ~135 | ~17 ko/s |
-| Demolition | ~270 | ~37 ko/s |
+| Mode | Débit par joueur |
+|---|---|
+| Classique | ~30 ko/s |
+| Hardcore | ~23 ko/s |
+| Demolition | ~44 ko/s |
 
 Deux leviers, par ordre d'efficacité :
 
-- `NET_RATE` (variable d'environnement, 20 par défaut) — le débit y est directement proportionnel.
-  Attention : le client rend légèrement dans le passé pour absorber la gigue, et ce retard vaut
-  environ 1,5 intervalle. Baisser `NET_RATE` économise de la bande passante **mais allonge
-  d'autant la latence perçue**. 15 reste jouable, en dessous ça devient mou.
+- `NET_RATE` (variable d'environnement, 25 par défaut) — le débit y est directement proportionnel.
+  **Cette valeur doit diviser `TICK_RATE`** (voir ci-dessous) ; le serveur arrondit au diviseur
+  entier le plus proche et affiche la cadence réelle au démarrage. Avec `TICK_RATE` à 25, les
+  valeurs saines sont 25 (un snapshot par pas) ou 12,5 (un sur deux).
 - La marge de vue dans `viewRadiusFor()` (`server/room.js`) — elle compte **au carré**.
 
 ### Fluidité
 
-Le serveur envoie 20 images/s et le client en affiche 60 : il faut inventer les intermédiaires.
+Le serveur envoie 25 images/s, le client en affiche 60. Deux mécanismes différents, parce qu'on ne
+peut prédire que soi-même.
 
-`net.js` conserve une file de snapshots horodatés et **rend légèrement dans le passé** (~85 ms),
-en interpolant entre les deux snapshots qui encadrent l'instant rendu. Ce retard volontaire absorbe
-la gigue réseau : un paquet en retard arrive avant qu'on en ait besoin, au lieu d'interrompre le
-mouvement.
+**Nos propres cellules : prédiction locale.** Le client rejoue la physique du serveur à chaque
+image, en repartant de la dernière position faisant autorité. La position devient une fonction
+continue du temps : lisse quel que soit le nombre d'images par seconde, et sans latence ajoutée.
+Chaque snapshot recale la prédiction ; au-delà de 600 unités d'écart (division, virus) on recale
+d'un coup plutôt que d'étirer un élastique. Le rayon, lui, reste celui du serveur : la masse dépend
+de ce qu'on mange.
 
-L'approche naïve — viser en permanence le dernier snapshot reçu et s'arrêter une fois arrivé — fige
-toutes les entités dès qu'un paquet tarde, ce qui arrive environ une fois sur deux. Le résultat est
-un déplacement très visiblement saccadé. `test/interpolation.mjs` mesure ça directement.
+Sans ça, notre cellule n'est qu'un écho du serveur : elle avance par paliers et se fige dès que le
+flux hoquette — avec la caméra, donc toute la scène.
 
-La caméra est le barycentre des cellules du joueur **calculé sur les positions déjà interpolées**,
-et non une valeur interpolée séparément : sinon elle se désynchronise des cellules et toute la scène
-vibre.
+**Les autres joueurs : interpolation retardée.** On ne connaît pas leurs intentions, donc on ne peut
+pas les prédire. Le client garde une file de snapshots et **rend légèrement dans le passé**, en
+interpolant entre les deux qui encadrent l'instant rendu. Ce retard absorbe la gigue.
+
+#### `NET_RATE` doit diviser `TICK_RATE`
+
+C'est le piège qui a coûté le plus cher. Avec une simulation à 25 Hz et une diffusion à 20 Hz, deux
+snapshots consécutifs sont séparés tantôt par un pas, tantôt par deux : les positions arrivent par
+bonds inégaux et **toute la scène tremble, terrain compris**. Mesuré, l'irrégularité passait de 11 %
+à 24 % rien qu'à cause de ça.
+
+La diffusion se fait donc **dans la boucle de simulation**, tous les N pas exactement — et non dans
+un `setInterval` séparé, qui dériverait de toute façon.
+
+#### Ne pas aligner la grille sur les pixels
+
+Arrondir les lignes de la grille à des pixels entiers les rend nettes, mais chacune saute d'un pixel
+d'un coup, à un moment différent, pendant que les cellules avancent en sous-pixel. Le fond se met à
+grouiller par rapport au reste. Positions exactes : lignes légèrement adoucies, décor d'un seul bloc.
 
 Le palier gratuit de Render offre 100 Go/mois, soit de l'ordre de 700 heures-joueur à 40 ko/s.
 

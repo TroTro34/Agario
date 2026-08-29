@@ -13,11 +13,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const PORT = process.env.PORT || 3000;
 const TICK_RATE = Number(process.env.TICK_RATE || 25); // pas de simulation / s
-// 20 snapshots/s. Le client rend legerement dans le passe pour absorber la
-// gigue (cf. net.js), et ce retard vaut ~1,5 intervalle : baisser cette valeur
-// economise de la bande passante mais allonge d'autant la latence percue.
-// 15 reste jouable si le reseau est la contrainte principale.
-const NET_RATE = Number(process.env.NET_RATE || 20); // snapshots / s
+// Snapshots par seconde. IMPORTANT : cette valeur doit DIVISER TICK_RATE.
+// Sinon deux snapshots consecutifs sont separes tantot par un pas de
+// simulation, tantot par deux, et le client recoit des positions espacees
+// irregulierement - toute la scene tremble. On arrondit donc a un diviseur
+// entier (25 -> 25, 12.5, 8.33...). 25 = un snapshot par pas, le plus fluide.
+const NET_RATE = Number(process.env.NET_RATE || 25); // snapshots / s
 const LB_RATE = 2; // leaderboard + roster / s
 
 export const SKINS = [
@@ -234,6 +235,12 @@ let last = Date.now();
 let acc = 0;
 const STEP_MS = 1000 / TICK_RATE;
 
+// Un snapshot tous les N pas de simulation. On force un entier : c'est ce qui
+// garantit un espacement rigoureusement constant entre deux snapshots.
+const TICKS_PER_SNAPSHOT = Math.max(1, Math.round(TICK_RATE / NET_RATE));
+const EFFECTIVE_NET_RATE = TICK_RATE / TICKS_PER_SNAPSHOT;
+let tickCount = 0;
+
 setInterval(() => {
   const now = Date.now();
   acc += now - last;
@@ -248,11 +255,22 @@ setInterval(() => {
       room.step();
     }
     acc -= STEP_MS;
+
+    // La diffusion est faite ICI, dans la boucle de simulation, et non dans un
+    // minuteur separe. Deux setInterval independants derivent l'un par rapport
+    // a l'autre, et si les cadences ne se divisent pas, deux snapshots
+    // consecutifs sont separes tantot par un pas de simulation, tantot par
+    // deux. Le client recoit alors des positions espacees irregulierement et
+    // toute la scene tremble - le terrain compris, puisque la camera suit.
+    // Ici, un snapshot tombe toujours sur une frontiere de pas exacte.
+    if (++tickCount >= TICKS_PER_SNAPSHOT) {
+      tickCount = 0;
+      broadcastSnapshots();
+    }
   }
 }, STEP_MS);
 
-// Snapshots binaires
-setInterval(() => {
+function broadcastSnapshots() {
   for (const [ws, b] of sockets) {
     if (ws.readyState !== 1 || ws.bufferedAmount > 512 * 1024) continue;
     const room = rooms.get(b.roomId);
@@ -271,7 +289,7 @@ setInterval(() => {
       }),
     );
   }
-}, 1000 / NET_RATE);
+}
 
 // Leaderboard + roster
 setInterval(() => {
@@ -307,7 +325,10 @@ setInterval(() => {
 
 server.listen(PORT, () => {
   console.log(`[agarium] http://localhost:${PORT}  (ws sur /ws)`);
-  console.log(`[agarium] modes: ${MODE_IDS.join(', ')} | tick ${TICK_RATE}Hz | net ${NET_RATE}Hz`);
+  console.log(
+    `[agarium] modes: ${MODE_IDS.join(', ')} | tick ${TICK_RATE}Hz | ` +
+      `net ${EFFECTIVE_NET_RATE.toFixed(1)}Hz (1 snapshot / ${TICKS_PER_SNAPSHOT} pas)`,
+  );
 });
 
 for (const sig of ['SIGTERM', 'SIGINT']) {

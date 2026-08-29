@@ -15,7 +15,7 @@ import { encodeSnapshot } from '../server/protocol.js';
 
 const SELF = 7;
 const SPEED = 600; // px/s, vitesse constante
-const NET_HZ = 20;
+const NET_HZ = 25;   // aligne sur la simulation (25 Hz) : 1 snapshot = 1 pas
 const FPS = 60;
 const DURATION = 6; // secondes simulees
 
@@ -197,11 +197,13 @@ const report = (r, limitCv) => {
 console.log('  -- autres joueurs : interpolation depuis le buffer --');
 for (const s of scenarios) report(run(s), 25);
 
+// Seuil a 18 % : on mesure ~11 % avec des cadences alignees et ~24 % quand
+// elles ne le sont pas. Ce seuil rattrape donc tout retour au desalignement.
 console.log('');
 console.log('  -- notre cellule : prediction locale --');
-report(runPredicted({ label: 'flux regulier       ', stallAt: 0, stallMs: 0 }), 25);
-report(runPredicted({ label: 'coupure de 150 ms   ', stallAt: 2000, stallMs: 150 }), 25);
-report(runPredicted({ label: 'coupure de 300 ms   ', stallAt: 2000, stallMs: 300 }), 40);
+report(runPredicted({ label: 'flux regulier       ', stallAt: 0, stallMs: 0 }), 18);
+report(runPredicted({ label: 'coupure de 150 ms   ', stallAt: 2000, stallMs: 150 }), 18);
+report(runPredicted({ label: 'coupure de 300 ms   ', stallAt: 2000, stallMs: 300 }), 18);
 
 console.log('');
 console.log(failed === 0 ? 'RENDU FLUIDE' : `${failed} SCENARIO(S) SACCADE(S)`);

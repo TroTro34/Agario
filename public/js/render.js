@@ -131,10 +131,16 @@ export class Renderer {
     const top = Math.max(0, cam.y - this.h / 2 / this.scale);
     const bottom = Math.min(worldSize, cam.y + this.h / 2 / this.scale);
 
+    // Surtout PAS d'arrondi au pixel ici. Aligner les lignes sur des pixels
+    // entiers les rend nettes, mais elles sautent alors d'un pixel d'un coup,
+    // chacune a un moment different, pendant que les cellules avancent en
+    // sous-pixel : le fond se met a grouiller par rapport au reste. On garde
+    // donc les positions exactes - lignes legerement adoucies, mais tout le
+    // decor glisse d'un seul bloc.
     const sy0 = this.screenY(top, cam);
     const sy1 = this.screenY(bottom, cam);
     for (let wx = Math.ceil(left / A.gridStep) * A.gridStep; wx <= right; wx += A.gridStep) {
-      const sx = Math.round(this.screenX(wx, cam)) + 0.5;
+      const sx = this.screenX(wx, cam);
       ctx.moveTo(sx, sy0);
       ctx.lineTo(sx, sy1);
     }
@@ -142,7 +148,7 @@ export class Renderer {
     const sx0 = this.screenX(left, cam);
     const sx1 = this.screenX(right, cam);
     for (let wy = Math.ceil(top / A.gridStep) * A.gridStep; wy <= bottom; wy += A.gridStep) {
-      const sy = Math.round(this.screenY(wy, cam)) + 0.5;
+      const sy = this.screenY(wy, cam);
       ctx.moveTo(sx0, sy);
       ctx.lineTo(sx1, sy);
     }
