@@ -503,6 +503,18 @@ export class Room {
         if (b.stopped) continue;
         this.hash.queryCircle(b.x, b.y, b.r + 200, scratch);
         for (const o of scratch) {
+          // Un projectile nourrit les virus, exactement comme la masse ejectee :
+          // apres quelques tirs le virus se duplique et part dans la direction
+          // du tir. Sans ca, tirer sur un virus ne produisait rien du tout.
+          if (o.kind === KIND.VIRUS) {
+            if (!this.viruses.has(o.id)) continue;
+            if (Math.hypot(o.x - b.x, o.y - b.y) > o.r) continue;
+            this.bullets.delete(b.id);
+            this.ids.give(b.id);
+            this.feedVirus(o, b.mass, Math.atan2(b.vy, b.vx));
+            break;
+          }
+
           if (o.kind !== KIND.CELL || o.ownerId === b.ownerId) continue;
           if (Math.hypot(o.x - b.x, o.y - b.y) > o.r + b.r) continue;
           const dmg = Math.min(m.cannon.damage, o.mass - m.minMass);
@@ -578,20 +590,31 @@ export class Room {
         if (Math.hypot(o.x - e.x, o.y - e.y) > o.r) continue;
         this.ejected.delete(e.id);
         this.ids.give(e.id);
-        o.mass += e.mass;
-        o.feedAngle = e.angle;
-        if (o.mass >= m.virusSplitMass) {
-          o.mass = m.virusMass;
-          o.r = massToRadius(o.mass);
-          const nv = this.spawnVirus(o.x, o.y);
-          nv.vx = Math.cos(o.feedAngle) * m.virusFeedSpeed;
-          nv.vy = Math.sin(o.feedAngle) * m.virusFeedSpeed;
-        } else {
-          o.r = massToRadius(o.mass);
-        }
+        this.feedVirus(o, e.mass, e.angle);
         break;
       }
     }
+  }
+
+  /**
+   * Nourrit un virus. Au-dela du seuil, il en expulse un nouveau dans la
+   * direction du tir plutot que de continuer a grossir.
+   * Utilise par la masse ejectee (W) ET par les projectiles du mode Demolition.
+   */
+  feedVirus(v, mass, angle) {
+    const m = this.mode;
+    v.mass += mass;
+    v.feedAngle = angle;
+    if (v.mass < m.virusSplitMass) {
+      v.r = massToRadius(v.mass);
+      return false;
+    }
+    v.mass = m.virusMass;
+    v.r = massToRadius(v.mass);
+    const nv = this.spawnVirus(v.x, v.y);
+    nv.vx = Math.cos(angle) * m.virusFeedSpeed;
+    nv.vy = Math.sin(angle) * m.virusFeedSpeed;
+    return true;
   }
 
   growCell(c, mass) {

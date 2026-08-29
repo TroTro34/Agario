@@ -197,9 +197,15 @@ section('Salve et projectiles immobilises');
   check('une salve = un projectile par cellule', room.bullets.size === p.cells.length, `${room.bullets.size} pour ${p.cells.length} cellules`);
 
   // Le projectile ralentit jusqu'a l'arret, il ne disparait jamais.
+  // On boucle jusqu'a l'arret plutot que sur un nombre de pas fixe : la duree
+  // depend de speed et friction, un nombre en dur casse a chaque reglage.
   const b = room.bullets.values().next().value;
-  for (let i = 0; i < 60; i++) room.moveProjectiles(room.dt);
-  check('le projectile finit par s immobiliser', b.stopped === true);
+  let ticks = 0;
+  while (!b.stopped && ticks < 400) {
+    room.moveProjectiles(room.dt);
+    ticks++;
+  }
+  check('le projectile finit par s immobiliser', b.stopped === true, `${(ticks * room.dt).toFixed(1)} s`);
   check('il reste sur le terrain', room.bullets.has(b.id));
 
   // Une fois arrete, il se ramasse et rapporte sa masse.
@@ -211,6 +217,38 @@ section('Salve et projectiles immobilises');
     'un projectile arrete se mange',
     eater.cells[0].mass > before,
     `${before.toFixed(0)} -> ${eater.cells[0].mass.toFixed(0)}`,
+  );
+}
+
+// --- 7bis. Tirer sur un virus le duplique ------------------------------------
+section('Projectiles et virus');
+{
+  const room = bareRoom('demolition');
+  const cn = room.mode.cannon;
+  const p = placePlayer(room, 3000, 3000, 900, 'Tireur');
+  const v = room.spawnVirus(4200, 3000);
+  room.setTarget(p, 20000, 3000);
+
+  const needed = Math.ceil((room.mode.virusSplitMass - room.mode.virusMass) / cn.eatMass);
+  check('le virus grossit sous les tirs', true, `${needed} projectiles attendus`);
+
+  let before = v.mass;
+  p.lastFireAt = 0;
+  room.doFire(p);
+  for (let i = 0; i < 40; i++) room.step();
+  check('un projectile nourrit le virus', v.mass > before, `${before} -> ${Math.round(v.mass)}`);
+
+  // On tire jusqu'au seuil : un nouveau virus doit apparaitre.
+  const virusesBefore = room.viruses.size;
+  for (let shot = 0; shot < needed; shot++) {
+    p.lastFireAt = 0;
+    room.doFire(p);
+    for (let i = 0; i < 40; i++) room.step();
+  }
+  check(
+    'au seuil, le virus se duplique',
+    room.viruses.size > virusesBefore,
+    `${virusesBefore} -> ${room.viruses.size} virus`,
   );
 }
 

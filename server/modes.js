@@ -146,8 +146,11 @@ export const MODES = {
       cost: 12,              // masse perdue par tir et par cellule
       damage: 20,            // masse arrachee a la cible en vol
       eatMass: 22,           // masse rapportee a qui le mange une fois arrete
-      speed: 1100,           // px/s au depart
-      friction: 0.90,        // amortissement par pas -> arret en ~1 s
+      // Portee = speed * dt / (1 - friction), soit ~1760 unites ici, parcourues
+      // en ~3 s. A titre de repere, un joueur a 1000 de masse voit environ
+      // 2600 unites autour de lui : le tir porte donc loin dans l'ecran.
+      speed: 2200,           // px/s au depart
+      friction: 0.95,        // amortissement par pas
       stopSpeed: 40,         // en dessous, le projectile est considere arrete
       cooldown: 0.12,        // secondes entre deux salves
     },

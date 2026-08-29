@@ -75,6 +75,13 @@ Le cœur du mode tient en trois règles qui se répondent :
 - **Le tir est bon marché** (12 de masse) mais **le projectile ne disparaît pas** : il ralentit,
   s'immobilise, et devient alors ramassable — pour **22**, soit plus qu'il n'a coûté. Mitrailler à
   l'aveugle nourrit donc l'adversaire. On peut aussi revenir chercher ses propres tirs perdus.
+- **Tirer sur un virus le nourrit**, exactement comme la masse éjectée : au bout de quatre
+  projectiles il se duplique et le nouveau part dans la direction du tir.
+
+La portée se calcule : `speed × dt / (1 − friction)`, soit environ **1760 unités** parcourues en 3 s.
+Le repère utile est le champ de vision — un joueur à 1000 de masse voit environ 2600 unités autour de
+lui, donc le tir traverse une bonne part de l'écran. Baisser `friction` raccourcit très vite la
+portée : à 0,90 elle tombe à 440 unités, ce qui ne portait même pas jusqu'à une cible visible.
 - **Les virus se mangent et font exploser**, comme partout ailleurs. C'est jouable parce que le seuil
   de tir est bas : après explosion, les 16 morceaux font ~69 de masse, au-dessus des 40 requis. On
   reste armé.
