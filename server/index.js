@@ -41,12 +41,20 @@ const CHAT_COOLDOWN_MS = 1200;
 const app = express();
 app.disable('x-powered-by');
 
+// Aucun cache long : les fichiers ne portent PAS de nom versionne (pas de
+// hash dans /js/net.js), donc un max-age fige l'ancienne version chez tous
+// ceux qui sont deja venus. Un deploiement restait invisible pendant une
+// heure, et on croyait le correctif inoperant alors qu'il n'etait pas execute.
+//
+// "no-cache" ne veut pas dire "ne pas mettre en cache" : le navigateur garde le
+// fichier mais revalide. Avec l'ETag, une version inchangee coute un 304 vide,
+// et l'ensemble du client pese moins de 60 ko.
 app.use(
   express.static(path.join(__dirname, '..', 'public'), {
-    maxAge: process.env.NODE_ENV === 'production' ? '1h' : 0,
-    setHeaders(res, filePath) {
-      // index.html doit toujours etre revalide, sinon un deploiement ne se voit pas.
-      if (filePath.endsWith('index.html')) res.setHeader('Cache-Control', 'no-cache');
+    etag: true,
+    lastModified: true,
+    setHeaders(res) {
+      res.setHeader('Cache-Control', 'no-cache');
     },
   }),
 );
@@ -335,10 +343,30 @@ server.listen(PORT, () => {
   );
 });
 
+let shuttingDown = false;
+
 for (const sig of ['SIGTERM', 'SIGINT']) {
   process.on(sig, () => {
+    if (shuttingDown) return; // Render peut renvoyer le signal
+    shuttingDown = true;
     console.log(`[agarium] ${sig} recu, arret.`);
+
+    // Il faut fermer les WebSocket explicitement. server.close() cesse
+    // d'accepter de nouvelles connexions mais ATTEND la fin des connexions en
+    // cours : or une WebSocket ne se ferme jamais d'elle-meme. Sans cette
+    // boucle, l'arret traine jusqu'au delai de secours et l'hebergeur finit
+    // par tuer le process de force, coupant les joueurs sans prevenir.
+    // 1001 = "going away" : le client sait qu'il doit se reconnecter, ce que
+    // fait deja net.js avec son backoff.
+    for (const ws of wss.clients) {
+      try {
+        ws.close(1001, 'redemarrage du serveur');
+      } catch {
+        /* connexion deja morte */
+      }
+    }
+    wss.close();
     server.close(() => process.exit(0));
-    setTimeout(() => process.exit(0), 3000).unref();
+    setTimeout(() => process.exit(0), 2000).unref();
   });
 }
