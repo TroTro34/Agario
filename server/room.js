@@ -15,6 +15,11 @@ const TAU = Math.PI * 2;
 // joueur cessent de se repousser, pour que le regroupement soit progressif.
 const MERGE_GRACE_MS = 1500;
 
+// Fraction du chevauchement resorbee a chaque pas entre deux morceaux d'un meme
+// joueur. Proche de 1 : ils restent tangents au lieu de se noyer l'un dans
+// l'autre. Strictement sous 1 pour ne pas osciller.
+const SEPARATION = 0.85;
+
 export const PALETTE_SIZE = 16;
 
 export const massToRadius = (m) => R_PER_MASS * Math.sqrt(m);
@@ -628,13 +633,19 @@ export class Room {
           // d'un coup. En les laissant se rapprocher, la fusion devient douce.
           if (now >= a.mergeAt - MERGE_GRACE_MS && now >= b.mergeAt - MERGE_GRACE_MS) continue;
           if (d === 0) d = 0.01;
-          const overlap = (a.r + b.r - d) * 0.5;
+          // Chaque cellule s'ecarte de la moitie du chevauchement : les deux
+          // finissent donc juste tangentes. L'ancienne version n'en resorbait
+          // que la moitie par pas, et comme le deplacement les ramene ensemble
+          // a chaque pas, l'equilibre se faisait a 57 % d'enfoncement : les
+          // morceaux se noyaient les uns dans les autres au lieu de rester
+          // distincts. Le coefficient reste sous 1 pour eviter l'oscillation.
+          const push = (a.r + b.r - d) * 0.5 * SEPARATION;
           const nx = dx / d;
           const ny = dy / d;
-          a.x -= nx * overlap * 0.5;
-          a.y -= ny * overlap * 0.5;
-          b.x += nx * overlap * 0.5;
-          b.y += ny * overlap * 0.5;
+          a.x -= nx * push;
+          a.y -= ny * push;
+          b.x += nx * push;
+          b.y += ny * push;
           this.clampWorld(a);
           this.clampWorld(b);
         }

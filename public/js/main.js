@@ -203,7 +203,11 @@ window.addEventListener('keydown', (e) => {
   } else if (e.code === 'Space') {
     e.preventDefault();
     if (!e.repeat) net.sendSplit();
-  } else if (e.code === 'KeyW') {
+  } else if (e.key.toLowerCase() === 'w') {
+    // On teste `key` (la lettre reellement marquee) et NON `code`, qui designe
+    // la position physique sur un clavier QWERTY. Sur un AZERTY, la touche
+    // marquee W se trouve a la position du Z de QWERTY : elle emet donc
+    // `KeyZ`, et un test sur `code === 'KeyW'` ne se declenche jamais.
     e.preventDefault();
     net.sendEject(); // repetition autorisee : utile pour nourrir et pour tirer
   }
