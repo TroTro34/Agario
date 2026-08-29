@@ -57,7 +57,17 @@ export class UI {
 
   // --- Preferences -----------------------------------------------------------
   loadPrefs() {
-    const base = { name: '', skin: 'solid', color: (Math.random() * PALETTE.length) | 0, mode: 'classique', arena: 'dark', grid: true, mass: true };
+    // Arene claire par defaut : c'est la direction artistique de reference
+    // (fond blanc casse, couleurs pleines, aucun effet lumineux).
+    const base = {
+      name: '',
+      skin: 'solid',
+      color: (Math.random() * PALETTE.length) | 0,
+      mode: 'classique',
+      arena: 'light',
+      grid: true,
+      mass: true,
+    };
     try {
       return { ...base, ...JSON.parse(localStorage.getItem(STORE_KEY) || '{}') };
     } catch {

@@ -158,7 +158,13 @@ wss.on('connection', (ws) => {
           color: mode.color,
           world: mode.world,
           maxCells: mode.maxCells,
-          cannon: mode.cannon ? { minMass: mode.cannon.minMass, cost: mode.cannon.cost } : null,
+          cannon: mode.cannon
+            ? {
+                minMass: mode.cannon.minMass,
+                cost: mode.cannon.cost,
+                eatMass: mode.cannon.eatMass,
+              }
+            : null,
           startMass: mode.startMass,
           virusEatMinMass: mode.virusEatMinMass,
           splitMinMass: mode.splitMinMass,

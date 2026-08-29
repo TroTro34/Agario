@@ -40,9 +40,10 @@ export const ARENAS = {
     massFill: '#ffffff',
     massStroke: '#000000',
   },
+  // Reference : fond blanc casse, grille a peine perceptible, aucun effet.
   light: {
-    bg: '#f2fbff',
-    grid: '#cfdce6',
+    bg: '#f5f7fa',
+    grid: '#e7ecf1',
     gridStep: 50,
     border: '#ff3b3b',
     borderWidth: 12,
@@ -84,11 +85,11 @@ export const EJECTED = {
   strokeWidth: 2,
 };
 
+// Mode Demolition. Rendu volontairement plat : couleur pleine du tireur et
+// contour assombri, exactement comme une cellule. Pas de lueur ni de halo.
 export const BULLET = {
-  // Mode Demolition : obus lumineux.
-  glow: 18,
-  strokeWidth: 3,
-  core: '#ffffff',
+  strokeDarken: 0.82,
+  strokeWidth: 2,
 };
 
 export const FONT = {

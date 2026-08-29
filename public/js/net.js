@@ -53,6 +53,7 @@ export class Net {
     // l'arrivee en jeu. Valeurs de repli en attendant le message d'accueil.
     this.foodR = R_PER_MASS * Math.SQRT2;
     this.ejectR = R_PER_MASS * Math.sqrt(14);
+    this.bulletR = R_PER_MASS * Math.sqrt(22);
     this.snapInterval = 66; // moyenne glissante, recalculee a la reception
     this.lastSnapAt = 0;
 
@@ -164,6 +165,7 @@ export class Net {
         this.worldSize = msg.mode.world;
         this.foodR = R_PER_MASS * Math.sqrt(msg.mode.foodMass ?? 2);
         this.ejectR = R_PER_MASS * Math.sqrt(msg.mode.ejectMass ?? 14);
+        this.bulletR = R_PER_MASS * Math.sqrt(msg.mode.cannon?.eatMass ?? 22);
         this._reset();
         this.on.welcome?.(msg);
         break;
@@ -243,7 +245,7 @@ export class Net {
         o += 1;
         // Rayons deduits, pas transmis : ces entites ont une masse fixe par
         // mode, autant economiser 2 octets par entite dans chaque snapshot.
-        r = kind === KIND.FOOD ? this.foodR : kind === KIND.BULLET ? 22 : this.ejectR;
+        r = kind === KIND.FOOD ? this.foodR : kind === KIND.BULLET ? this.bulletR : this.ejectR;
       }
 
       map.set(id, { kind, x, y, r, ownerId, color });

@@ -153,28 +153,84 @@ section('Fusion des cellules');
 section('Canon (Demolition)');
 {
   const room = bareRoom('demolition');
+  const cn = room.mode.cannon;
   const shooter = placePlayer(room, 3000, 3000, 1000, 'Tireur');
   const victim = placePlayer(room, 3400, 3000, 1000, 'Cible');
   room.setTarget(shooter, 5000, 3000);
 
   const massBefore = shooter.cells[0].mass;
   room.doFire(shooter);
-  check('un obus est cree', room.bullets.size === 1, `${room.bullets.size}`);
-  check('cout de 30 de masse', Math.abs(massBefore - shooter.cells[0].mass - 30) < 0.01);
+  check('un projectile par cellule', room.bullets.size === 1, `${room.bullets.size}`);
+  // Le cout est lu dans la config : un chiffre en dur ici casse a chaque reglage.
+  check(
+    `cout de ${cn.cost} de masse`,
+    Math.abs(massBefore - shooter.cells[0].mass - cn.cost) < 0.01,
+  );
+  check('tirer coute moins que ce que le projectile rapporte', cn.cost < cn.eatMass, `${cn.cost} < ${cn.eatMass}`);
 
-  // L'obus doit apparaitre dans le hash, sinon il est invisible pour le client.
+  // Le projectile doit apparaitre dans le hash, sinon il est invisible du client.
   room.rebuildHash();
-  const found = room.hash.queryCircle(room.bullets.values().next().value.x, room.bullets.values().next().value.y, 5, []);
-  check('obus present dans le hash spatial', found.some((e) => e.kind === 4));
+  const b0 = room.bullets.values().next().value;
+  const found = room.hash.queryCircle(b0.x, b0.y, 5, []);
+  check('projectile present dans le hash spatial', found.some((e) => e.kind === 4));
 
   const victimBefore = victim.cells[0].mass;
   for (let i = 0; i < 12; i++) room.step();
   check(
-    'la cible perd de la masse',
+    'en vol, la cible perd de la masse',
     victim.cells[0].mass < victimBefore,
     `${victimBefore.toFixed(0)} -> ${victim.cells[0].mass.toFixed(0)}`,
   );
-  check('la cible n est pas tuee par un obus', victim.cells.length === 1);
+  check('un projectile ne tue pas', victim.cells.length === 1);
+}
+
+// --- 7b. Toutes les cellules tirent, et le projectile s'immobilise -----------
+section('Salve et projectiles immobilises');
+{
+  const room = bareRoom('demolition');
+  const p = placePlayer(room, 4000, 4000, 800, 'Tireur');
+  room.setTarget(p, 9000, 4000);
+  room.doSplit(p);
+  room.doSplit(p);
+  p.lastFireAt = 0;
+  room.doFire(p);
+  check('une salve = un projectile par cellule', room.bullets.size === p.cells.length, `${room.bullets.size} pour ${p.cells.length} cellules`);
+
+  // Le projectile ralentit jusqu'a l'arret, il ne disparait jamais.
+  const b = room.bullets.values().next().value;
+  for (let i = 0; i < 60; i++) room.moveProjectiles(room.dt);
+  check('le projectile finit par s immobiliser', b.stopped === true);
+  check('il reste sur le terrain', room.bullets.has(b.id));
+
+  // Une fois arrete, il se ramasse et rapporte sa masse.
+  const eater = placePlayer(room, b.x, b.y, 400, 'Mangeur');
+  const before = eater.cells[0].mass;
+  room.rebuildHash();
+  room.resolveEating();
+  check(
+    'un projectile arrete se mange',
+    eater.cells[0].mass > before,
+    `${before.toFixed(0)} -> ${eater.cells[0].mass.toFixed(0)}`,
+  );
+}
+
+// --- 7c. Les virus explosent a nouveau en Demolition -------------------------
+section('Virus en Demolition');
+{
+  const room = bareRoom('demolition');
+  const p = placePlayer(room, 4000, 4000, 1000, 'T');
+  room.spawnVirus(4000, 4000);
+  room.rebuildHash();
+  room.resolveEating();
+  check('a 1000 de masse, le virus fait exploser', p.cells.length > 1, `${p.cells.length} morceaux`);
+
+  // Et les morceaux restent au-dessus du seuil de tir : exploser ne desarme pas.
+  const biggest = Math.max(...p.cells.map((c) => c.mass));
+  check(
+    'les morceaux peuvent encore tirer',
+    biggest >= room.mode.cannon.minMass,
+    `plus gros morceau ${biggest.toFixed(0)} >= ${room.mode.cannon.minMass}`,
+  );
 }
 
 // --- 8. Attrition ------------------------------------------------------------

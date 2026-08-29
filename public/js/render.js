@@ -208,22 +208,15 @@ export class Renderer {
     const r = e.r * this.scale;
     if (r < 1) return;
     const fill = colorOf(e.color);
-    const sx = this.screenX(e.x, cam);
-    const sy = this.screenY(e.y, cam);
-
-    ctx.save();
-    ctx.shadowColor = fill;
-    ctx.shadowBlur = BULLET.glow;
     ctx.fillStyle = fill;
     ctx.beginPath();
-    ctx.arc(sx, sy, r, 0, TAU);
+    ctx.arc(this.screenX(e.x, cam), this.screenY(e.y, cam), r, 0, TAU);
     ctx.fill();
-    ctx.restore();
-
-    ctx.fillStyle = BULLET.core;
-    ctx.beginPath();
-    ctx.arc(sx, sy, r * 0.42, 0, TAU);
-    ctx.fill();
+    if (r > 4) {
+      ctx.strokeStyle = darken(fill, BULLET.strokeDarken);
+      ctx.lineWidth = BULLET.strokeWidth;
+      ctx.stroke();
+    }
   }
 
   drawVirus(e, cam) {

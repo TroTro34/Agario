@@ -66,13 +66,23 @@ une interprétation cohérente, pas une reproduction. Tout est dans `server/mode
 | | |
 |---|---|
 | **Confirmé** | Libellé « Demolition » (`Crazy FFA` en anglais), **on démarre à 1000 de masse**, **`W` tire sur les adversaires et leur fait perdre de la masse**, 16 cellules max, 800 joueurs max |
-| **Choisi ici** | Chiffres du canon : 30 de masse par tir, 45 arrachés à la cible, portée 1,4 s à 1150 px/s, cadence 0,18 s, masse minimum 150 pour tirer. Vitesse ×1,5 (sinon on démarre en limace à 1000 de masse) |
+| **Choisi ici** | Les chiffres : 12 de masse par tir, 20 arrachés en vol, 22 rapportés à qui ramasse le projectile arrêté, cadence 0,12 s, masse minimum 40 par cellule. Vitesse ×1,5 (sinon on démarre en limace à 1000 de masse) |
 
-Un réglage mérite une explication : `virusEatMinMass` est monté à **2500** dans ce mode, contre 133
-partout ailleurs. Comme on démarre à 1000, le seuil de base faisait exploser le joueur sur le premier
-virus venu, en 16 morceaux de ~69 — sous les 150 requis pour tirer. On perdait donc son canon en
-quelques secondes, ce qui vide le mode de son intérêt. Les virus redeviennent dangereux une fois
-qu'on a vraiment grossi.
+Le cœur du mode tient en trois règles qui se répondent :
+
+- **Toutes les cellules tirent en même temps.** Une salve part de chaque morceau, pas seulement du
+  plus gros. Être éclaté n'affaiblit donc pas la puissance de feu — ça la disperse.
+- **Le tir est bon marché** (12 de masse) mais **le projectile ne disparaît pas** : il ralentit,
+  s'immobilise, et devient alors ramassable — pour **22**, soit plus qu'il n'a coûté. Mitrailler à
+  l'aveugle nourrit donc l'adversaire. On peut aussi revenir chercher ses propres tirs perdus.
+- **Les virus se mangent et font exploser**, comme partout ailleurs. C'est jouable parce que le seuil
+  de tir est bas : après explosion, les 16 morceaux font ~69 de masse, au-dessus des 40 requis. On
+  reste armé.
+
+Ces trois règles sont liées. `virusEatMinMass` avait été monté à 2500 à une époque où seule la plus
+grosse cellule tirait, à partir de 150 : un virus réduisait alors le joueur en morceaux de 69, sous
+le seuil, et le désarmait pour de bon. En faisant tirer toutes les cellules à partir de 40, le
+problème disparaît et les virus peuvent redevenir mangeables.
 
 Le mécanisme central (masse de départ + `W` qui devient une arme) est bien celui de l'original.
 

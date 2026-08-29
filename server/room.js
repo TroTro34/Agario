@@ -354,31 +354,34 @@ export class Room {
     }
   }
 
-  // Mode Demolition : W tire un obus qui arrache de la masse a la cible.
+  // Mode Demolition : W tire un projectile depuis CHAQUE cellule du joueur.
   doFire(p) {
     const cn = this.mode.cannon;
     const now = Date.now();
     if (now - p.lastFireAt < cn.cooldown * 1000) return;
-    let c = null;
-    for (const cell of p.cells) if (!c || cell.mass > c.mass) c = cell;
-    if (!c || c.mass < cn.minMass) return;
     p.lastFireAt = now;
-    const ang = Math.atan2(p.targetY - c.y, p.targetX - c.x);
-    c.mass = Math.max(this.mode.minMass, c.mass - cn.cost);
-    c.r = massToRadius(c.mass);
-    const b = {
-      id: this.ids.take(),
-      kind: KIND.BULLET,
-      x: c.x + Math.cos(ang) * (c.r + 6),
-      y: c.y + Math.sin(ang) * (c.r + 6),
-      vx: Math.cos(ang) * cn.speed,
-      vy: Math.sin(ang) * cn.speed,
-      r: cn.radius,
-      color: p.color,
-      ownerId: p.id,
-      life: cn.life,
-    };
-    this.bullets.set(b.id, b);
+
+    const r = massToRadius(cn.eatMass);
+    for (const c of p.cells) {
+      if (c.mass < cn.minMass) continue;
+      const ang = Math.atan2(p.targetY - c.y, p.targetX - c.x);
+      c.mass = Math.max(this.mode.minMass, c.mass - cn.cost);
+      c.r = massToRadius(c.mass);
+      const b = {
+        id: this.ids.take(),
+        kind: KIND.BULLET,
+        x: c.x + Math.cos(ang) * (c.r + r + 2),
+        y: c.y + Math.sin(ang) * (c.r + r + 2),
+        vx: Math.cos(ang) * cn.speed,
+        vy: Math.sin(ang) * cn.speed,
+        r,
+        mass: cn.eatMass,
+        color: p.color,
+        ownerId: p.id,
+        stopped: false,
+      };
+      this.bullets.set(b.id, b);
+    }
   }
 
   // --- Boucle de simulation --------------------------------------------------
@@ -443,15 +446,24 @@ export class Room {
       if (Math.abs(e.vy) < 5) e.vy = 0;
       this.clampWorld(e);
     }
-    for (const b of [...this.bullets.values()]) {
-      b.x += b.vx * dt;
-      b.y += b.vy * dt;
-      b.life -= dt;
-      const out =
-        b.x <= b.r || b.y <= b.r || b.x >= this.world - b.r || b.y >= this.world - b.r;
-      if (b.life <= 0 || out) {
-        this.bullets.delete(b.id);
-        this.ids.give(b.id);
+    // Les projectiles ne disparaissent pas : ils ralentissent puis s'immobilisent
+    // et restent sur le terrain, mangeables (cf. resolveEating). Tirer revient
+    // donc a semer de la masse que l'adversaire peut ramasser.
+    const cn = this.mode.cannon;
+    if (cn) {
+      const decay = Math.pow(cn.friction, dt * this.tickRate);
+      for (const b of this.bullets.values()) {
+        if (b.stopped) continue;
+        b.x += b.vx * dt;
+        b.y += b.vy * dt;
+        b.vx *= decay;
+        b.vy *= decay;
+        if (Math.hypot(b.vx, b.vy) < cn.stopSpeed) {
+          b.vx = 0;
+          b.vy = 0;
+          b.stopped = true;
+        }
+        this.clampWorld(b);
       }
     }
     for (const v of this.viruses.values()) {
@@ -482,9 +494,13 @@ export class Room {
     const m = this.mode;
     const scratch = [];
 
-    // Obus (Demolition) : ils arrachent de la masse, ils ne mangent pas.
+    // Projectiles EN VOL (Demolition) : ils arrachent de la masse et se
+    // consument au contact. Ceux qui manquent leur cible finissent par
+    // s'immobiliser et deviennent mangeables (traite dans la boucle des
+    // cellules ci-dessous) : rater, c'est nourrir l'adversaire.
     if (m.cannon) {
       for (const b of [...this.bullets.values()]) {
+        if (b.stopped) continue;
         this.hash.queryCircle(b.x, b.y, b.r + 200, scratch);
         for (const o of scratch) {
           if (o.kind !== KIND.CELL || o.ownerId === b.ownerId) continue;
@@ -521,6 +537,15 @@ export class Room {
         } else if (o.kind === KIND.EJECTED) {
           if (d < c.r && this.ejected.has(o.id)) {
             this.ejected.delete(o.id);
+            this.ids.give(o.id);
+            this.growCell(c, o.mass);
+          }
+        } else if (o.kind === KIND.BULLET) {
+          // Un projectile immobilise se ramasse comme de la nourriture, et il
+          // rapporte plus qu'il n'a coute a tirer. Y compris au tireur : il
+          // peut revenir chercher ses tirs perdus.
+          if (o.stopped && d < c.r && this.bullets.has(o.id)) {
+            this.bullets.delete(o.id);
             this.ids.give(o.id);
             this.growCell(c, o.mass);
           }

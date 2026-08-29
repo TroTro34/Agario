@@ -130,21 +130,26 @@ export const MODES = {
     bots: 30,
     decayRate: 0.003,
     speedMul: 1.5,           // sinon 1000 de masse = une limace
-    // On demarre a 1000, tres au-dessus du seuil de base (133) : sans ce
-    // relevement, le premier virus venu eclate le joueur en 16 morceaux de ~69,
-    // sous les 150 requis pour tirer. Il perdrait son canon en quelques secondes,
-    // ce qui vide le mode de son interet. Les virus redeviennent dangereux
-    // seulement une fois qu'on a vraiment grossi.
-    virusEatMinMass: 2500,
-    // W n'ejecte plus de la masse : il tire un obus.
+    // Les virus se mangent et font exploser, comme dans les autres modes : le
+    // seuil de base s'applique. (Il avait ete releve a 2500 pour proteger le
+    // canon quand seule la plus grosse cellule pouvait tirer et qu'il fallait
+    // 150 de masse ; maintenant que TOUTES les cellules tirent a partir de 40,
+    // exploser sur un virus ne desarme plus.)
+    // W n'ejecte plus de la masse : il tire un projectile.
+    //
+    // Le tir est BON MARCHE, et TOUTES les cellules du joueur tirent a la fois.
+    // Le projectile ralentit puis s'immobilise : une fois arrete, il devient
+    // mangeable et rapporte plus qu'il n'a coute. Mitrailler a l'aveugle nourrit
+    // donc l'adversaire - c'est tout l'equilibre du mode.
     cannon: {
-      minMass: 150,          // masse mini pour tirer
-      cost: 30,              // masse perdue par tir
-      damage: 45,            // masse arrachee a la cible
-      speed: 1150,           // px/s
-      radius: 22,
-      life: 1.4,             // secondes de vol
-      cooldown: 0.18,        // secondes entre deux tirs
+      minMass: 40,           // masse mini d'une cellule pour tirer
+      cost: 12,              // masse perdue par tir et par cellule
+      damage: 20,            // masse arrachee a la cible en vol
+      eatMass: 22,           // masse rapportee a qui le mange une fois arrete
+      speed: 1100,           // px/s au depart
+      friction: 0.90,        // amortissement par pas -> arret en ~1 s
+      stopSpeed: 40,         // en dessous, le projectile est considere arrete
+      cooldown: 0.12,        // secondes entre deux salves
     },
   },
 };
