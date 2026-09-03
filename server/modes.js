@@ -22,7 +22,7 @@ export const BASE = {
   // --- Joueur --------------------------------------------------------------
   startMass: 10,
   minMass: 10,
-  maxCells: 16,          // 4 splits successifs = 2^4
+  maxCells: 12,          // nombre maximum de morceaux pour un joueur
   speedMul: 1.0,
 
   // --- Split ---------------------------------------------------------------
@@ -99,7 +99,7 @@ export const MODES = {
     foodCount: 3400,   // densite 2.7 : la reference est a 4.0, mais 4.0 fait
                        // grimper la bande passante a 68 ko/s par joueur (cf. README)
     virusCount: 90,
-    bots: 35,
+    bots: 22,
   },
 
   hardcore: {
@@ -116,7 +116,7 @@ export const MODES = {
     world: 9000,             // arene plus serree : on se croise vite
     foodCount: 2200,   // meme densite que classique
     virusCount: 60,
-    bots: 30,
+    bots: 20,
     speedMul: 1.25,          // ca va plus vite
     decayRate: 0.004,        // on fond deux fois plus vite
     mergeBase: 40,           // on reste eclate plus longtemps
@@ -152,7 +152,7 @@ export const MODES = {
     // sans aller jusqu'a la reference - compromis assume, mesure dans le README.
     foodCount: 1700,
     virusCount: 55,
-    bots: 30,
+    bots: 18,
     decayRate: 0.003,
     speedMul: 1.5,           // sinon 1000 de masse = une limace
     // Seuil de duplication ajuste pour ce mode : avec 12 par projectile, le
@@ -180,14 +180,14 @@ export const MODES = {
       // partir de rien : le tireur ramasse ses propres tirs et grossit sans
       // limite. Meme regle que l'ejection classique (18 pour une pastille
       // de 14). Le gain reste gros pour l'adversaire : 12, soit six pastilles.
-      cost: 16,              // masse perdue par tir et par cellule
+      cost: 12,              // masse perdue par tir et par cellule
       // damage DOIT rester sous cost. A 20 pour 16, chaque projectile etait
       // rentable en lui-meme : etre divise en 16 multipliait par 16 une action
       // deja gagnante, sans aucune contrepartie. A 12 pour 16, arroser coute
       // toujours plus que ca ne rapporte - tirer redevient un outil tactique
       // (affaiblir une cible pour la manger) et non une facon de farmer.
-      damage: 12,            // masse arrachee a la cible en vol
-      eatMass: 12,           // masse rapportee a qui le mange une fois arrete
+      damage: 9,             // masse arrachee a la cible en vol
+      eatMass: 9,            // masse rapportee a qui le mange une fois arrete
       // Portee = speed * dt / (1 - friction), soit ~1760 unites ici, parcourues
       // en ~3 s. A titre de repere, un joueur a 1000 de masse voit environ
       // 2600 unites autour de lui : le tir porte donc loin dans l'ecran.

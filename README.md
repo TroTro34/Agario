@@ -46,7 +46,7 @@ c'est important si tu veux coller au plus près de l'original.
 | | |
 |---|---|
 | **Confirmé** | Libellé « Classique » (`FFA` en anglais), XP double, `Espace` pour diviser / `W` pour nourrir, 4 splits successifs (16 cellules max), pas de bonus, 800 joueurs max |
-| **Choisi ici** | Toutes les constantes chiffrées : monde 11180, 2600 pastilles, 45 virus, attrition 0,2 %/s, fusion 30 s + 0,0233 × masse |
+| **Choisi ici** | Toutes les constantes chiffrées : monde 11180, 3400 pastilles, 90 virus, attrition 0,2 %/s, fusion 30 s + 0,0233 × masse |
 
 C'est le mode de référence : physique classique du genre, sans surcouche.
 
@@ -66,17 +66,20 @@ une interprétation cohérente, pas une reproduction. Tout est dans `server/mode
 | | |
 |---|---|
 | **Confirmé** | Libellé « Demolition » (`Crazy FFA` en anglais), **on démarre à 1000 de masse**, **`W` tire sur les adversaires et leur fait perdre de la masse**, 16 cellules max, 800 joueurs max |
-| **Choisi ici** | Les chiffres : 12 de masse par tir, 20 arrachés en vol, 22 rapportés à qui ramasse le projectile arrêté, cadence 0,12 s, masse minimum 40 par cellule. Vitesse ×1,5 (sinon on démarre en limace à 1000 de masse) |
+| **Choisi ici** | Les chiffres : 12 de masse par tir, 9 arrachés en vol, 9 rapportés à qui ramasse le projectile arrêté, cadence 0,12 s, masse minimum 40 par cellule. Vitesse ×1,5 (sinon on démarre en limace à 1000 de masse) |
 
 Le cœur du mode tient en trois règles qui se répondent :
 
 - **Toutes les cellules tirent en même temps.** Une salve part de chaque morceau, pas seulement du
   plus gros. Être éclaté n'affaiblit donc pas la puissance de feu — ça la disperse.
-- **Le tir est bon marché** (16 de masse) et **le projectile ne disparaît pas** : il ralentit,
-  s'immobilise, et devient alors ramassable pour **12** — soit six pastilles d'un coup. Mitrailler à
+- **Le tir est bon marché** (12 de masse) et **le projectile ne disparaît pas** : il ralentit,
+  s'immobilise, et devient alors ramassable pour **9**. Mitrailler à
   l'aveugle nourrit donc l'adversaire, et on peut revenir chercher ses propres tirs perdus.
 - **Tirer sur un virus le nourrit**, exactement comme la masse éjectée : au bout de quatre
   projectiles il se duplique et le nouveau part dans la direction du tir.
+- **Les virus se mangent et font exploser**, comme partout ailleurs. C'est jouable parce que le
+  seuil de tir est bas : après explosion, les morceaux restent au-dessus des 40 requis pour tirer.
+  On reste armé.
 
 Deux invariants tiennent cette économie, et les casser rend le mode injouable :
 
@@ -85,9 +88,9 @@ comme on peut ramasser ses propres projectiles, il suffit de tirer en boucle pou
 limite. C'est la même règle que l'éjection classique, qui coûte 18 pour une pastille de 14.
 
 **`damage` doit rester sous `cost`.** Sinon chaque projectile est rentable isolément, et comme
-*toutes* les cellules tirent, être divisé en 16 multiplie par 16 une action déjà gagnante. À 12 pour
-16, arroser coûte toujours plus que ça ne rapporte : tirer redevient un outil tactique — affaiblir
-une cible pour la manger — et non une façon de farmer.
+*toutes* les cellules tirent, être éclaté multiplie d'autant une action déjà gagnante. À 9 pour 12,
+arroser coûte toujours plus que ça ne rapporte : tirer redevient un outil tactique — affaiblir une
+cible pour la manger — et non une façon de farmer.
 
 **Les virus se dédoublent sans limite propre.** Un même virus peut être nourri et dédoublé
 indéfiniment, et ses descendants aussi. La seule borne est un plafond global généreux
@@ -102,11 +105,7 @@ La portée se calcule : `speed × dt / (1 − friction)`, soit environ **1760 un
 Le repère utile est le champ de vision — un joueur à 1000 de masse voit environ 2600 unités autour de
 lui, donc le tir traverse une bonne part de l'écran. Baisser `friction` raccourcit très vite la
 portée : à 0,90 elle tombe à 440 unités, ce qui ne portait même pas jusqu'à une cible visible.
-- **Les virus se mangent et font exploser**, comme partout ailleurs. C'est jouable parce que le seuil
-  de tir est bas : après explosion, les 16 morceaux font ~69 de masse, au-dessus des 40 requis. On
-  reste armé.
-
-Ces trois règles sont liées. `virusEatMinMass` avait été monté à 2500 à une époque où seule la plus
+Ces règles sont liées. `virusEatMinMass` avait été monté à 2500 à une époque où seule la plus
 grosse cellule tirait, à partir de 150 : un virus réduisait alors le joueur en morceaux de 69, sous
 le seuil, et le désarmait pour de bon. En faisant tirer toutes les cellules à partir de 40, le
 problème disparaît et les virus peuvent redevenir mangeables.
@@ -114,6 +113,14 @@ problème disparaît et les virus peuvent redevenir mangeables.
 Le mécanisme central (masse de départ + `W` qui devient une arme) est bien celui de l'original.
 
 ---
+
+### Écarts volontaires avec la référence
+
+| Paramètre | jeu.video | Ici | Pourquoi |
+|---|---|---|---|
+| Cellules max | 16 (`maxSplits: 4`) | **12** | Choix de jeu : moins d'éparpillement |
+| Densité de nourriture | — | 2,7 / 100k unités² | 4,0 ferait 68 ko/s par joueur |
+| Taille de l'arène Demolition | 24000×24000 | 13000×13000 | Population bien plus faible |
 
 ## Contrôles
 

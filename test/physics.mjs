@@ -130,7 +130,13 @@ section('Split (Classique)');
   // Plafond de cellules.
   const r = placePlayer(room, 1500, 1500, 4000);
   for (let i = 0; i < 8; i++) room.doSplit(r);
-  check('plafond a 16 cellules', r.cells.length <= 16, `${r.cells.length}`);
+  // Lu dans la config : un nombre en dur ici resterait vert apres un changement
+  // de maxCells tout en affichant une valeur fausse.
+  check(
+    `plafond a ${room.mode.maxCells} cellules`,
+    r.cells.length <= room.mode.maxCells,
+    `${r.cells.length}`,
+  );
 }
 
 // --- 3. Ejection de masse ----------------------------------------------------
